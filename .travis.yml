@@ -3,3 +3,6 @@ scala:
    - 2.11.7
 notifications:
   slack: asdfct:ONdRthwq9DuaylfqlyEFXFZN
+branches:
+   only: 
+      - master

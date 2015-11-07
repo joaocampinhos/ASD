@@ -42,8 +42,8 @@ class Acceptor(learners: Seq[ActorRef]) extends Actor {
       }
     }
 
-    case Decided(n) => {
-      log.info(" Decidimos: "+n.toString)
+    case Decided(v) => {
+      learners.foreach(_ ! Decided(v))
     }
 
   }

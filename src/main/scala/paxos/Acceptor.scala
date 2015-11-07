@@ -9,17 +9,43 @@ class Acceptor(learners: Seq[ActorRef]) extends Actor {
 
   val log = Logging(context.system, this)
 
-  var done = false
+  // O maior prepare ate agora
+  var np:Option[Int] = None
 
-  //Receber propostas e aceitar a primeira
-  //enviar para os learners
+  // Ultima proposta aceite
+  var na:Option[Int] = None
+  var va:Option[Int] = None
+
   def receive = {
-    case v:Int =>
-      if (!done) {
-        done = true
-        log.info("Aceitamos: "+v.toString)
-        learners.foreach(_ ! v)
+
+    case Prepare(n) => {
+      //log.info(n.toString)
+      if(np.map(_ < n).getOrElse(true)) {
+        np = Some(n)
+        sender ! PrepareOk(na,va)
       }
+      // TODO: ver se isto e mesmo assim
+      /*
+      else {
+        sender ! PrepareAgain
+      }
+      */
+    }
+
+    case Accept(n, v) => {
+      //log.info(n + " >= " +np)
+      if(np.map(_ <= n).getOrElse(true)) {
+        log.info("aceita isso!")
+        na = Some(n)
+        va = Some(v)
+        sender ! AcceptOk(n)
+      }
+    }
+
+    case Decided(n) => {
+      log.info(" Decidimos: "+n.toString)
+    }
+
   }
 
 }

@@ -16,17 +16,19 @@ object Paxos {
 
     //Criar 1 acceptor
     val acceptors = Seq(
-      system.actorOf(Props(new Acceptor(learners)), name = "acceptor1")
+      system.actorOf(Props(new Acceptor(learners)), name = "acceptor1"),
+      system.actorOf(Props(new Acceptor(learners)), name = "acceptor2"),
+      system.actorOf(Props(new Acceptor(learners)), name = "acceptor3")
     )
 
     //Criar 3 proposers
     val proposers = Seq(
-      system.actorOf(Props(new Proposer(acceptors)), name = "proposer1"),
-      system.actorOf(Props(new Proposer(acceptors)), name = "proposer2"),
-      system.actorOf(Props(new Proposer(acceptors)), name = "proposer3")
+      system.actorOf(Props(new Proposer(acceptors, 1)), name = "proposer1"),
+      system.actorOf(Props(new Proposer(acceptors, 2)), name = "proposer2"),
+      system.actorOf(Props(new Proposer(acceptors, 3)), name = "proposer3")
     )
 
-    proposers.foreach(_ ! "start")
+    proposers.foreach(_ ! Start)
 
   }
 

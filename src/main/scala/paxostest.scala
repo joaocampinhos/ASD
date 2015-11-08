@@ -18,7 +18,10 @@ object Paxos {
     val acceptors = Seq(
       system.actorOf(Props(new Acceptor(learners)), name = "acceptor1"),
       system.actorOf(Props(new Acceptor(learners)), name = "acceptor2"),
-      system.actorOf(Props(new Acceptor(learners)), name = "acceptor3")
+      system.actorOf(Props(new Acceptor(learners)), name = "acceptor4"),
+      system.actorOf(Props(new Acceptor(learners)), name = "acceptor5"),
+      system.actorOf(Props(new Acceptor(learners)), name = "acceptor6"),
+      system.actorOf(Props(new Acceptor(learners)), name = "acceptor7")
     )
 
     //Criar 3 proposers

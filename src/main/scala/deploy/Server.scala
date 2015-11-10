@@ -13,7 +13,7 @@ class Server() extends Actor {
   var store = scala.collection.mutable.HashMap[String,String]()
   bota("Started")
 
-  def bota(text: String) = { println(Console.RED+"["+self.path+"] "+Console.GREEN+text+Console.WHITE) }
+  def bota(text: String) = { println(Console.RED+"["+self.path.name+"] "+Console.GREEN+text+Console.WHITE) }
 
   def receive = {
     case _ => log.info("Received unknown message")

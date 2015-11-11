@@ -15,8 +15,10 @@ class Proposer(acceptors: Seq[ActorRef], n:Int) extends Actor {
   //Valor a propor
   val v:Int = Random.nextInt(10)
 
-  var oks: Seq[(Option[Int], Option[Int])] = Nil
+  var oks: Seq[Option[Proposal]] = Nil
   var acs: Seq[Int] = Nil
+
+  var acsa: Seq[Int] = Nil
 
   var quorum = 0
 
@@ -32,44 +34,51 @@ class Proposer(acceptors: Seq[ActorRef], n:Int) extends Actor {
       acceptors.foreach(_ ! Prepare(n))
 
     // Esperar pelo PrepareOk(na, va)
-    case PrepareOk(na, va) =>
-      oks = ((na, va)) +: oks
+    case PrepareOk(prop) =>
+      oks = prop +: oks
 
       //Quorum
       if (oks.size > acceptors.size / 2) {
-        //println("["+self.path.name+"] "+ oks.filter(_ != (None,None)))
         //escolher o V da lista de oks com o N maior ou escolher o nosso v
-        val value = oks.filter(_ != (None,None))
+        //log.info(oks.filter(_ != None) toString)
+        log.info(oks toString)
+        acceptors.foreach(_ ! Accept(Proposal(nn, v)))
+        /*
+        val value = oks.filter(_ != None)
           .sortBy { case (pN, _) => pN }
           .headOption
           .getOrElse((Some("tmp"),Some(v)))
           ._2
           .get
         botaa("Accept("+nn+", "+value+")")
-        acceptors.foreach(_ ! Accept(nn, value))
+        */
         oks = Nil
       }
 
     //Caso de termos de enviar um novo prepare com um novo n
-    case PrepareAgain =>
-      quorum = quorum+1
+    case PrepareAgain(n) =>
+      quorum = quorum + 1
       if (quorum > acceptors.size / 2) {
-        nn = nn+1
-        quorum = 0
+        nn = n.getOrElse(nn) + 1
         botap("Prepare("+nn+")")
         acceptors.foreach(_ ! Prepare(nn))
+        quorum = 0
       }
 
-    case AcceptOk(n) =>
-      acs = n +: acs
-
-      //Quorum
-      if (acs.size > acceptors.size / 2) {
-        botad("Decided("+v+")")
-        acceptors.foreach(_ ! Decided(v))
-        acs = Nil
-        //Matar actor(?)
+    //Caso do accept falhar
+    case AcceptAgain(prop) => println("WAT"+prop toString)
+      /*
+      quorum = quorum + 1
+      if (quorum > acceptors.size / 2) {
+        nn = n + 1
+        botap("Prepare("+nn+")")
+        acceptors.foreach(_ ! Prepare(nn))
+        quorum = 0
       }
+      */
+
+    //Caso nosso valor seja aceite
+    case AcceptOk(n) => {}//context stop self
 
   }
 }

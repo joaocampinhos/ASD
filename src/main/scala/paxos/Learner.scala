@@ -9,15 +9,12 @@ class Learner extends Actor {
 
   var decided = false
 
-  def bota(text: String) = { println(Console.RED+"["+self.path.name+"] "+Console.GREEN+text+Console.WHITE) }
-
   def receive = {
-    case Decided(v) => {
+    case Learn(v) =>
       if (!decided) {
         decided = true
-        bota("Decided("+v+")")
-        System.exit(0)
+        log.info(v.toString)
+        //System.exit(0)
       }
-    }
   }
 }

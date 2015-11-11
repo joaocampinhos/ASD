@@ -15,8 +15,7 @@ class Acceptor(learners: Seq[ActorRef]) extends Actor {
   var np:Option[Int] = None
 
   // Ultima proposta aceite
-  var na:Option[Int] = None
-  var va:Option[Int] = None
+  var last:Option[Proposal] = None
 
   def botap(text: String) = { println(Console.MAGENTA+"["+self.path.name+"] "+Console.YELLOW+text+Console.WHITE) }
   def botaa(text: String) = { println(Console.MAGENTA+"["+self.path.name+"] "+Console.BLUE+text+Console.WHITE) }
@@ -24,37 +23,34 @@ class Acceptor(learners: Seq[ActorRef]) extends Actor {
 
   def receive = {
 
-    case Prepare(n) => {
-      if(np.map(_ < n).getOrElse(true)) {
-        np = Some(n)
-        botap("PrepareOk("+na+", "+va+")")
-        sender ! PrepareOk(na,va)
-      }
-      // TODO: ver se isto e mesmo assim
-      else {
-        sender ! PrepareAgain
-      }
-    }
-
-    case Accept(n, v) => {
-      //log.info(n + " >= " +np)
-      if(np.map(_ <= n).getOrElse(true)) {
-        na = Some(n)
-        va = Some(v)
-        botaa("AcceptOk("+n+")")
-        sender ! AcceptOk(n)
-      }
-    }
-
-    case Decided(v) =>
+    case Prepare(n) =>
       if (!decided) {
-        decided = true;
-        botad("Decided("+v+")")
-        learners.foreach(_ ! Decided(v))
+        if(np.map(_ < n).getOrElse(true)) {
+          np = Some(n)
+          //botap("PrepareOk("+na+", "+va+")")
+          sender ! PrepareOk(last)
+        }
+        else {
+          //botap("PrepareAgain("+na+", "+va+")")
+          sender ! PrepareAgain(np)
+        }
+      }
+
+    case Accept(prop) =>
+      if (!decided) {
+        if(np.map(_ <= prop.n).getOrElse(true)) {
+          decided = true;
+          last = Some(prop)
+          sender ! AcceptOk(prop.n)
+          learners.foreach(_ ! Learn(prop.v))
+        }
+        else {
+          //botaa("AcceptAgain("+na+", "+va+")")
+          println(last toString)
+          sender ! AcceptAgain(last)
+        }
       }
 
   }
-
 }
-
 

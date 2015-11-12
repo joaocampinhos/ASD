@@ -24,32 +24,26 @@ class Acceptor(learners: Seq[ActorRef]) extends Actor {
   def receive = {
 
     case Prepare(n) =>
-      if (!decided) {
         if(np.map(_ < n).getOrElse(true)) {
           np = Some(n)
-          //botap("PrepareOk("+na+", "+va+")")
+          botap("PrepareOk("+last+")")
           sender ! PrepareOk(last)
         }
         else {
-          //botap("PrepareAgain("+na+", "+va+")")
+          botap("PrepareAgain("+np+")")
           sender ! PrepareAgain(np)
         }
-      }
 
     case Accept(prop) =>
-      if (!decided) {
         if(np.map(_ <= prop.n).getOrElse(true)) {
-          decided = true;
           last = Some(prop)
           sender ! AcceptOk(prop.n)
           learners.foreach(_ ! Learn(prop.v))
         }
         else {
-          //botaa("AcceptAgain("+na+", "+va+")")
-          println(last toString)
+          botaa("AcceptAgain("+last+")")
           sender ! AcceptAgain(last)
         }
-      }
 
   }
 }

@@ -40,18 +40,17 @@ class Proposer(acceptors: Seq[ActorRef], n:Int) extends Actor {
       //Quorum
       if (oks.size > acceptors.size / 2) {
         //escolher o V da lista de oks com o N maior ou escolher o nosso v
-        //log.info(oks.filter(_ != None) toString)
-        log.info(oks toString)
         acceptors.foreach(_ ! Accept(Proposal(nn, v)))
-        /*
         val value = oks.filter(_ != None)
-          .sortBy { case (pN, _) => pN }
+          .sortBy {
+            case None => -1
+            case Some(Proposal(pN, _)) => pN
+          }
           .headOption
-          .getOrElse((Some("tmp"),Some(v)))
-          ._2
+          .getOrElse(Some(Proposal(nn,v)))
           .get
-        botaa("Accept("+nn+", "+value+")")
-        */
+        acceptors.foreach(_ ! Accept(value))
+        botaa("Accept("+value+")")
         oks = Nil
       }
 
@@ -66,20 +65,10 @@ class Proposer(acceptors: Seq[ActorRef], n:Int) extends Actor {
       }
 
     //Caso do accept falhar
-    case AcceptAgain(prop) => println("WAT"+prop toString)
-      /*
-      quorum = quorum + 1
-      if (quorum > acceptors.size / 2) {
-        nn = n + 1
-        botap("Prepare("+nn+")")
-        acceptors.foreach(_ ! Prepare(nn))
-        quorum = 0
-      }
-      */
+    case AcceptAgain(prop) => {}
 
     //Caso nosso valor seja aceite
-    case AcceptOk(n) => {}//context stop self
-
+    case AcceptOk(n) => {}
   }
 }
 

@@ -1,1 +1,1 @@
-case class View(viewId: Long, participants: List[Process], viewState: List[Operation] ) {}
+case class View[T,K](id: Long, participants: List[T], state: List[K] )

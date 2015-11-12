@@ -1,0 +1,1 @@
+case class View(viewId: Long, participants: List[Process], viewState: List[Operation] ) {}

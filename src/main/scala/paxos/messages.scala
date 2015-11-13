@@ -1,6 +1,8 @@
 package paxos
 import akka.actor.ActorRef
 
+case object Debug
+
 case class Servers(s:Seq[ActorRef])
 
 case class Operation(v:Any)

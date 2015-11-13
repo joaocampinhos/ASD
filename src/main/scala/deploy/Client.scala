@@ -90,10 +90,9 @@ object Client {
           l ? op onComplete {
             case Success(result) =>
               bota("Sent " + result + " to " + l.path.name)
-              scheduler.scheduleOnce(0.seconds, self, DoRequest)
-              if (consecutiveError)
-                context.unbecome()
+              resetRole()
             case Failure(failure) =>
+              serverLeader= None
               bota("Failed to send " + op + " to " + l.path.name+".Reason: "+failure)
               sendToAll(op, consecutiveError)
           }
@@ -117,7 +116,7 @@ object Client {
 
     def createOperation(): Operation = {
       if (opsCounter == clientConf.maxOpsNumber - 1) {
-        context.stop(self)
+        context.stop(self)// Client has executed all operations
       }
       val isOpRead = rnd.nextInt(0, 101) <= clientConf.readsRate
       lastOpWasRead = Some(isOpRead)

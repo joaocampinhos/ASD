@@ -26,7 +26,7 @@ object Server {
       case ServersConf(map) =>
         bota("Received addresses")
         serversAddresses = map
-        actualLeader = Some(serversAddresses.values.head)
+        actualLeader = serversAddresses.get("Server0")//TODO REMOVE
         sender ! Success("Ok " + self.path.name)
         context.become(startJob(), discardOld = false)
       case _ => bota("[Stage: Waiting for servers' address] Received unknown message.")

@@ -29,7 +29,7 @@ object Server {
         actualLeader = Some(serversAddresses.values.head)
         sender ! Success("Ok " + self.path.name)
         context.become(startJob(), discardOld = false)
-      case _ => log.info("Received unknown message")
+      case _ => bota("[Stage: Waiting for servers' address] Received unknown message.")
     }
 
     def startJob(): Receive = {
@@ -39,13 +39,13 @@ object Server {
         case None =>
           sender ! TheLeaderIs(electLeader())
       }
-      case Get(key) => 
+      case Get(key) =>
         bota(key)
-        sender ! Success("Get: "+ key)
-      case Put(key, value) => 
+        sender ! Success("Get: " + key)
+      case Put(key, value) =>
         bota(key + " " + value)
-        sender ! Success("Put: "+ key+ ", "+value)
-      case _ => log.info("Received unknown message")
+        sender ! Success("Put: " + key + ", " + value)
+      case _ => bota("[Stage: Responding to Get/Put] Received unknown message.")
     }
 
     def electLeader(): ActorRef = {

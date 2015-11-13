@@ -45,7 +45,7 @@ object Client {
     val zipf = new ZipfDistribution(clientConf.zipfNumber, 1)
     val rnd = ThreadLocalRandom.current
     var lastOpWasRead: Option[Boolean] = None
-    var serverLeader: Option[ActorRef] = Some(serversURI.values.head)
+    var serverLeader: Option[ActorRef] = None
     var leaderQuorum = new MutableList[ActorRef]()
     var opsCounter = 0
     scheduler.scheduleOnce(1.seconds, self, DoRequest)
@@ -69,41 +69,43 @@ object Client {
           // if (leaderQuorum.size == calcQuorumDegree(serversURI.size)) { //TODO the above line by this one
           val leaderAddress = leaderQuorum.groupBy(l => l).map(t => (t._1, t._2.length)).toList.sortBy(_._2).max
           if (leaderAddress._2 > 1) {
+            serverLeader = Some(leaderAddress._1)
             leaderQuorum = new MutableList[ActorRef]()
             sendToLeader(op, true)
             resetRole()
           } else {
-            bota("[Stage: Getting Leader Address] No leader was chosen")
-            resetRole()
+            bota("Cluster has no leader")
+            // resetRole()//TODO Handle the consecutive error
+            context.stop(self)
           }
         }
       }
       case _ => bota("[Stage:Getting Leader Address] Received unknown message.")
     }
 
-    def sendToLeader(op: Operation, sucessiveError: Boolean) = {
+    def sendToLeader(op: Operation, consecutiveError: Boolean) = {
       serverLeader match {
         case Some(l) => {
           implicit val timeout = Timeout(5.seconds)
           l ? op onComplete {
             case Success(result) =>
-              bota("Sending " + op + " to " + l.path.name)
-              println(result)
+              bota("Sent " + result + " to " + l.path.name)
               scheduler.scheduleOnce(0.seconds, self, DoRequest)
-              if (sucessiveError)
+              if (consecutiveError)
                 context.unbecome()
             case Failure(failure) =>
-              println(failure)
-              sendToAll(op, sucessiveError)
+              bota("Failed to send " + op + " to " + l.path.name+".Reason: "+failure)
+              sendToAll(op, consecutiveError)
           }
         }
-        case None => sendToAll(op, sucessiveError)
+        case None => sendToAll(op, consecutiveError)
       }
     }
 
-    def sendToAll(op: Operation, sucessiveError: Boolean) = {
+    def sendToAll(op: Operation, consecutiveError: Boolean) = {
+      bota("Finding leader")
       serversURI.values.foreach(e => e ! WhoIsLeader)
-      context.become(findLeader(op), discardOld = sucessiveError)
+      context.become(findLeader(op), discardOld = consecutiveError)
     }
 
     def calcQuorumDegree(value: Int): Int = {
@@ -114,11 +116,12 @@ object Client {
     }
 
     def createOperation(): Operation = {
-      if (opsCounter == clientConf.maxOpsNumber) {
+      if (opsCounter == clientConf.maxOpsNumber - 1) {
         context.stop(self)
       }
       val isOpRead = rnd.nextInt(0, 101) <= clientConf.readsRate
       lastOpWasRead = Some(isOpRead)
+      opsCounter += 1
       if (isOpRead)
         Get(zipf.sample().toString)
       else {

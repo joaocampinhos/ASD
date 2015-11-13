@@ -18,22 +18,23 @@ object Paxos {
 
     //Criar 1 acceptor
     val acceptors = Seq(
-      system.actorOf(Props(new Acceptor(learners)), name = "acceptor1"),
-      system.actorOf(Props(new Acceptor(learners)), name = "acceptor2"),
-      system.actorOf(Props(new Acceptor(learners)), name = "acceptor4"),
-      system.actorOf(Props(new Acceptor(learners)), name = "acceptor5"),
-      system.actorOf(Props(new Acceptor(learners)), name = "acceptor6"),
-      system.actorOf(Props(new Acceptor(learners)), name = "acceptor9")
+      system.actorOf(Props(new Acceptor), name = "acceptor1"),
+      system.actorOf(Props(new Acceptor), name = "acceptor2"),
+      system.actorOf(Props(new Acceptor), name = "acceptor9")
     )
 
     //Criar 3 proposers
     val proposers = Seq(
-      system.actorOf(Props(new Proposer(acceptors, 1)), name = "proposer1"),
-      system.actorOf(Props(new Proposer(acceptors, 2)), name = "proposer2"),
-      system.actorOf(Props(new Proposer(acceptors, 3)), name = "proposer4"),
-      system.actorOf(Props(new Proposer(acceptors, 7)), name = "proposer8")
+      system.actorOf(Props(new Proposer), name = "proposer1"),
+      system.actorOf(Props(new Proposer), name = "proposer2"),
+      system.actorOf(Props(new Proposer), name = "proposer8")
     )
 
+    proposers.foreach(_ ! Servers(acceptors))
+    acceptors.foreach(_ ! Servers(learners))
+    proposers.head ! Operation("Olá")
+    proposers.tail.head ! Operation("Olé")
+    proposers.tail.tail.head ! Operation("Olí")
     proposers.foreach(_ ! Start)
 
   }

@@ -5,11 +5,13 @@ import akka.actor.ActorRef
 import akka.event.Logging
 import scala.util.Random
 
-class Acceptor(learners: Seq[ActorRef]) extends Actor {
+class Acceptor extends Actor {
 
   val log = Logging(context.system, this)
 
   var decided = false;
+
+  var learners: Seq[ActorRef] = Nil
 
   // O maior prepare ate agora
   var np:Option[Int] = None
@@ -22,6 +24,8 @@ class Acceptor(learners: Seq[ActorRef]) extends Actor {
   def botad(text: String) = { println(Console.MAGENTA+"["+self.path.name+"] "+Console.GREEN+text+Console.WHITE) }
 
   def receive = {
+
+    case Servers(servers) => learners = servers
 
     case Prepare(n) =>
         if(np.map(_ < n).getOrElse(true)) {

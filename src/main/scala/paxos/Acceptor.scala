@@ -58,6 +58,7 @@ class Acceptor extends Actor {
     case Stop => {
       np       = None
       last     = None
+      sender ! Stop
     }
 
   }

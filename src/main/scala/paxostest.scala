@@ -1,7 +1,11 @@
-import akka.actor.{ActorSystem, Props, Actor, ActorRef, Deploy, AddressFromURIString}
+import akka.actor._
 import akka.remote.RemoteScope
 import akka.event.Logging
 import paxos._
+import akka.pattern.ask
+import akka.util.Timeout
+import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.duration._
 
 object Paxos {
 
@@ -52,28 +56,40 @@ object Paxos {
     //proposers.foreach(_ ! Debug)
     //acceptors.foreach(_ ! Debug)
 
+    var done = false
+
     def receive = {
       case Start =>
         proposers.foreach(_ ! Start)
+
       case Learn(v) =>
         count = count + 1
 
         if (count == learners.size) {
           count = 0
           println(v)
-          proposers.foreach(_ ! Stop)
-          //then
-          acceptors.foreach(_ ! Stop)
-          //then
-          learners.foreach(_ ! Stop)
-          //then
-          proposers.head ! Operation("X")
-          //then
-          proposers.tail.head ! Operation("Y")
-          //then
-          proposers.tail.tail.head ! Operation("Z")
-          //then
-          self ! Start
+          for (p <- proposers) {
+            implicit val timeout = Timeout(20 seconds)
+            val future = p ? Stop
+            val result = Await.result(future, timeout.duration)
+          }
+          for (p <- acceptors) {
+            implicit val timeout = Timeout(20 seconds)
+            val future = p ? Stop
+            val result = Await.result(future, timeout.duration)
+          }
+          for (p <- learners) {
+            implicit val timeout = Timeout(20 seconds)
+            val future = p ? Stop
+            val result = Await.result(future, timeout.duration)
+          }
+          if (!done) {
+            proposers.head ! Operation(1)
+            proposers.tail.head ! Operation(2)
+            proposers.tail.tail.head ! Operation(3)
+            done = true
+            self ! Start
+          }
         }
     }
   }

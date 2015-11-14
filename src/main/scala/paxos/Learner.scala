@@ -16,6 +16,8 @@ class Learner(ref:ActorRef) extends Actor {
         ref ! Learn(v)
         //System.exit(0)
       }
-    case Stop => decided = false
+    case Stop =>
+      decided = false
+      sender ! Stop
   }
 }

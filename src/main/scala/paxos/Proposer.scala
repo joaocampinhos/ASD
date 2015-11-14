@@ -77,7 +77,6 @@ class Proposer extends Actor {
       //Quorum
       if (noks.size > acceptors.size / 2) {
         //escolher o V da lista de oks com o N maior ou escolher o nosso v
-        //acceptors.foreach(_ ! Accept(Proposal(nn, v)))
         val value = noks.filter(_ != None)
           .sortBy {
             case None => -1
@@ -93,6 +92,15 @@ class Proposer extends Actor {
 
     //Caso nosso valor seja aceite
     case AcceptOk(n) => {
+      //context.unbecome()
+    }
+
+    case Stop => {
+      nn        = 1
+      v         = Nil
+      oks       = Nil
+      noks      = Nil
+      quorum    = 0
       context.unbecome()
     }
 

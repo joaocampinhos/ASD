@@ -9,6 +9,10 @@ case class Operation(v:Any)
 
 case object Start
 
+case object Stop
+
+case object Output
+
 case class Proposal(val n:Int, val v:Any)
 
 case class Prepare(n:Int)

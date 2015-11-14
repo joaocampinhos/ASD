@@ -10,8 +10,6 @@ class Acceptor extends Actor {
   val log = Logging(context.system, this)
   var debug = false
 
-  var decided = false;
-
   var learners: Seq[ActorRef] = Nil
 
   // O maior prepare ate agora
@@ -56,6 +54,11 @@ class Acceptor extends Actor {
           botaa("SEND AcceptAgain("+last+")")
           sender ! AcceptAgain(last)
         }
+
+    case Stop => {
+      np       = None
+      last     = None
+    }
 
   }
 }

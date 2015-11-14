@@ -66,9 +66,9 @@ object Client {
       case TheLeaderIs(l) => {
         leaderQuorum += l
         if (leaderQuorum.size == serversURI.size) {
-          // if (leaderQuorum.size == calcQuorumDegree(serversURI.size)) { //TODO the above line by this one
+          // if (leaderQuorum.size == ) { //TODO the above line by this one
           val leaderAddress = leaderQuorum.groupBy(l => l).map(t => (t._1, t._2.length)).toList.sortBy(_._2).max
-          if (leaderAddress._2 > 1) {
+          if (leaderAddress._2 >= calcQuorumDegree(serversURI.size)) {
             serverLeader = Some(leaderAddress._1)
             leaderQuorum = new MutableList[ActorRef]()
             sendToLeader(op, true)
@@ -133,6 +133,5 @@ object Client {
         }
       }
     }
-
   }
 }

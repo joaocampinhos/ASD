@@ -1,6 +1,6 @@
 package paxos
 
-import akka.actor.Actor
+import akka.actor._
 import akka.actor.ActorRef
 import akka.event.Logging
 import scala.util.Random
@@ -10,7 +10,7 @@ class Acceptor extends Actor {
   val log = Logging(context.system, this)
   var debug = false
 
-  var learners: Seq[ActorRef] = Nil
+  var learners: Seq[ActorSelection] = Nil
 
   // O maior prepare ate agora
   var np:Option[Int] = None
@@ -27,7 +27,7 @@ class Acceptor extends Actor {
     //turn on debug messages
     case Debug => debug = true
 
-    case Servers(servers) => learners = servers
+    case Servers(servers) => learners = servers.toSeq
 
     case Prepare(n) =>
       botap("RECV Prepare("+n+")")

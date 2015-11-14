@@ -1,6 +1,6 @@
 package paxos
 
-import akka.actor.Actor
+import akka.actor._
 import akka.actor.ActorRef
 import akka.event.Logging
 import scala.util.Random
@@ -16,7 +16,7 @@ class Proposer extends Actor {
   //Valor inicial a propor
   var v:Any = Nil
 
-  var acceptors: Seq[ActorRef] = Nil
+  var acceptors: Seq[ActorSelection] = Nil
 
   var oks: Seq[Option[Proposal]] = Nil
   var noks: Seq[Option[Proposal]] = Nil
@@ -109,7 +109,7 @@ class Proposer extends Actor {
 
   def receive = {
 
-    case Servers(servers) => acceptors = servers
+    case Servers(servers) => acceptors = servers.toSeq
 
     case Operation(op) =>
       v = op

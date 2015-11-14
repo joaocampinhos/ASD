@@ -1,13 +1,15 @@
 package paxos
-import akka.actor.ActorRef
+import akka.actor._
+import scala.collection.mutable.MutableList
 
 case object Debug
 
-case class Servers(s:Seq[ActorRef])
+case class Servers(s:MutableList[ActorSelection])
 
 case class Operation(v:Any)
 
 case object Start
+case class Start(v:Any)
 
 case object Stop
 

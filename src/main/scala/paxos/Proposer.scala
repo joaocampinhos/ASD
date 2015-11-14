@@ -101,6 +101,7 @@ class Proposer extends Actor {
       oks       = Nil
       noks      = Nil
       quorum    = 0
+      sender ! Stop
       context.unbecome()
     }
 

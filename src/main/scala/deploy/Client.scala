@@ -72,7 +72,6 @@ object Client {
             serverLeader = Some(leaderAddress._1)
             leaderQuorum = new MutableList[ActorRef]()
             sendToLeader(op, true)
-            resetRole()
           } else {
             bota("Cluster has no leader")
             // resetRole()//TODO Handle the consecutive error
@@ -92,8 +91,8 @@ object Client {
               bota("Sent " + result + " to " + l.path.name)
               resetRole()
             case Failure(failure) =>
-              serverLeader= None
-              bota("Failed to send " + op + " to " + l.path.name+".Reason: "+failure)
+              bota("Failed to send " + op + " to " + l.path.name + ".Reason: " + failure)
+              serverLeader = None
               sendToAll(op, consecutiveError)
           }
         }
@@ -115,9 +114,6 @@ object Client {
     }
 
     def createOperation(): Operation = {
-      if (opsCounter == clientConf.maxOpsNumber - 1) {
-        context.stop(self)// Client has executed all operations
-      }
       val isOpRead = rnd.nextInt(0, 101) <= clientConf.readsRate
       lastOpWasRead = Some(isOpRead)
       opsCounter += 1
@@ -129,8 +125,13 @@ object Client {
     }
 
     def resetRole() = {
-      scheduler.scheduleOnce(0.seconds, self, DoRequest)
-      context.unbecome()
+      opsCounter match {
+        case clientConf.maxOpsNumber => context.stop(self) // Client has executed all operations
+        case _ => {
+          scheduler.scheduleOnce(0.seconds, self, DoRequest)
+          context.unbecome()
+        }
+      }
     }
 
   }

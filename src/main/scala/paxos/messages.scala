@@ -1,11 +1,17 @@
 package paxos
 import akka.actor.ActorRef
 
+case object Debug
+
 case class Servers(s:Seq[ActorRef])
 
 case class Operation(v:Any)
 
 case object Start
+
+case object Stop
+
+case object Output
 
 case class Proposal(val n:Int, val v:Any)
 

@@ -1,1 +1,5 @@
-case class View[T,K](id: Long, participants: List[T], state: List[K] )
+package paxos
+
+case class View[T,K](id: Long, participants: List[T], state: List[K] ) {
+
+}

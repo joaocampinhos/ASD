@@ -1,9 +1,9 @@
 package paxos
 
-import akka.actor.Actor
+import akka.actor.{ActorSystem, Props, Actor, ActorRef, Deploy, AddressFromURIString}
 import akka.event.Logging
 
-class Learner extends Actor {
+class Learner(ref:ActorRef) extends Actor {
 
   val log = Logging(context.system, this)
 
@@ -13,8 +13,9 @@ class Learner extends Actor {
     case Learn(v) =>
       if (!decided) {
         decided = true
-        log.info(v.toString)
+        ref ! Learn(v)
         //System.exit(0)
       }
+    case Stop => decided = false
   }
 }

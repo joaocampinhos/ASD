@@ -28,7 +28,7 @@ object Server {
     var serversAddresses = HashMap[String, ActorRef]()
     var actualLeader: Option[ActorRef] = None
 
-    var paxos = context.actorOf(Props(new T()), name = "Paxos")
+    var paxos = context.actorOf(Props(new Paxost ()), name = "Paxos")
 
     bota("Started")
 
@@ -77,7 +77,7 @@ object Server {
     }
   }
 
-  class T() extends Actor {
+  class Paxos() extends Actor {
     import context.dispatcher
 
     var count: Int = 0

@@ -35,6 +35,7 @@ object Server {
     def startJob(): Receive = {
       case WhoIsLeader => actualLeader match {
         case Some(l) =>
+          //TODO CONTACT LEADER, if it fails execute paxos
           sender ! TheLeaderIs(l)
         case None =>
           sender ! TheLeaderIs(electLeader())

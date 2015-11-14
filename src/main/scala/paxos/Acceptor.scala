@@ -5,56 +5,62 @@ import akka.actor.ActorRef
 import akka.event.Logging
 import scala.util.Random
 
-class Acceptor(learners: Seq[ActorRef]) extends Actor {
+class Acceptor extends Actor {
 
   val log = Logging(context.system, this)
+  var debug = false
 
-  var decided = false;
+  var learners: Seq[ActorRef] = Nil
 
   // O maior prepare ate agora
   var np:Option[Int] = None
 
   // Ultima proposta aceite
-  var na:Option[Int] = None
-  var va:Option[Int] = None
+  var last:Option[Proposal] = None
 
-  def botap(text: String) = { println(Console.MAGENTA+"["+self.path.name+"] "+Console.YELLOW+text+Console.WHITE) }
-  def botaa(text: String) = { println(Console.MAGENTA+"["+self.path.name+"] "+Console.BLUE+text+Console.WHITE) }
-  def botad(text: String) = { println(Console.MAGENTA+"["+self.path.name+"] "+Console.GREEN+text+Console.WHITE) }
+  def botap(text: String) = { if (debug) println(Console.MAGENTA+"["+self.path.name+"] "+Console.YELLOW+text+Console.WHITE) }
+  def botaa(text: String) = { if (debug) println(Console.MAGENTA+"["+self.path.name+"] "+Console.BLUE+text+Console.WHITE)   }
+  def botad(text: String) = { if (debug) println(Console.MAGENTA+"["+self.path.name+"] "+Console.GREEN+text+Console.WHITE)  }
 
   def receive = {
 
-    case Prepare(n) => {
-      if(np.map(_ < n).getOrElse(true)) {
-        np = Some(n)
-        botap("PrepareOk("+na+", "+va+")")
-        sender ! PrepareOk(na,va)
-      }
-      // TODO: ver se isto e mesmo assim
-      else {
-        sender ! PrepareAgain
-      }
-    }
+    //turn on debug messages
+    case Debug => debug = true
 
-    case Accept(n, v) => {
-      //log.info(n + " >= " +np)
-      if(np.map(_ <= n).getOrElse(true)) {
-        na = Some(n)
-        va = Some(v)
-        botaa("AcceptOk("+n+")")
-        sender ! AcceptOk(n)
-      }
-    }
+    case Servers(servers) => learners = servers
 
-    case Decided(v) =>
-      if (!decided) {
-        decided = true;
-        botad("Decided("+v+")")
-        learners.foreach(_ ! Decided(v))
-      }
+    case Prepare(n) =>
+      botap("RECV Prepare("+n+")")
+        if(np.map(_ < n).getOrElse(true)) {
+          np = Some(n)
+          botap("SEND PrepareOk("+last+")")
+          sender ! PrepareOk(last)
+        }
+        else {
+          botap("SEND PrepareAgain("+last+")")
+          sender ! PrepareAgain(np)
+        }
+
+    case Accept(prop) =>
+      botaa("RECV Accept("+prop+")")
+        if(np.map(_ <= prop.n).getOrElse(true)) {
+          last = Some(prop)
+          botaa("SEND AcceptOk("+prop.n+")")
+          sender ! AcceptOk(prop.n)
+          botad("SEND Learn("+prop.v+")")
+          learners.foreach(_ ! Learn(prop.v))
+        }
+        else {
+          botaa("SEND AcceptAgain("+last+")")
+          sender ! AcceptAgain(last)
+        }
+
+    case Stop => {
+      np       = None
+      last     = None
+      sender ! Stop
+    }
 
   }
-
 }
-
 

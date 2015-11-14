@@ -1,16 +1,31 @@
 package paxos
+import akka.actor.ActorRef
+
+case object Debug
+
+case class Servers(s:Seq[ActorRef])
+
+case class Operation(v:Any)
 
 case object Start
 
+case object Stop
+
+case object Output
+
+case class Proposal(val n:Int, val v:Any)
+
 case class Prepare(n:Int)
 
-case object PrepareAgain
+case class PrepareAgain(n:Option[Int])
 
-case class PrepareOk(na:Option[Int], va:Option[Int])
+case class PrepareOk(m:Option[Proposal])
 
-case class Accept(n:Int, v:Int)
+case class Accept(m:Proposal)
 
 case class AcceptOk(n:Int)
 
-case class Decided(n:Int)
+case class AcceptAgain(m:Option[Proposal])
+
+case class Learn(v:Any)
 

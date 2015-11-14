@@ -5,71 +5,115 @@ import akka.actor.ActorRef
 import akka.event.Logging
 import scala.util.Random
 
-class Proposer(acceptors: Seq[ActorRef], n:Int) extends Actor {
+class Proposer extends Actor {
 
   val log = Logging(context.system, this)
+  var debug = false
 
   //Nossa tag
-  var nn:Int = n
+  var nn:Int = 1
 
-  //Valor a propor
-  val v:Int = Random.nextInt(10)
+  //Valor inicial a propor
+  var v:Any = Nil
 
-  var oks: Seq[(Option[Int], Option[Int])] = Nil
-  var acs: Seq[Int] = Nil
+  var acceptors: Seq[ActorRef] = Nil
+
+  var oks: Seq[Option[Proposal]] = Nil
+  var noks: Seq[Option[Proposal]] = Nil
 
   var quorum = 0
 
-  def botap(text: String) = { println(Console.CYAN+"["+self.path.name+"] "+Console.YELLOW+text+Console.WHITE) }
-  def botaa(text: String) = { println(Console.CYAN+"["+self.path.name+"] "+Console.BLUE+text+Console.WHITE) }
-  def botad(text: String) = { println(Console.CYAN+"["+self.path.name+"] "+Console.GREEN+text+Console.WHITE) }
+  def botap(text: String) = { if (debug) println(Console.CYAN+"["+self.path.name+"] "+Console.YELLOW+text+Console.WHITE) }
+  def botaa(text: String) = { if (debug) println(Console.CYAN+"["+self.path.name+"] "+Console.BLUE+text+Console.WHITE) }
+  def botad(text: String) = { if (debug) println(Console.CYAN+"["+self.path.name+"] "+Console.GREEN+text+Console.WHITE) }
 
-  def receive = {
+  def paxos() : Receive = {
 
-    // Enviar Prepare(n)
+    //turn on debug messages
+    case Debug => debug = true
+
+    // Enviar Prepare
     case Start =>
-      botap("Prepare("+n+")")
-      acceptors.foreach(_ ! Prepare(n))
+      botap("SEND Prepare("+nn+")")
+      acceptors.foreach(_ ! Prepare(nn))
 
     // Esperar pelo PrepareOk(na, va)
-    case PrepareOk(na, va) =>
-      oks = ((na, va)) +: oks
+    case PrepareOk(prop) =>
+      botap("RECV PrepareOk("+prop+")")
+      oks = prop +: oks
 
       //Quorum
       if (oks.size > acceptors.size / 2) {
-        //println("["+self.path.name+"] "+ oks.filter(_ != (None,None)))
         //escolher o V da lista de oks com o N maior ou escolher o nosso v
-        val value = oks.filter(_ != (None,None))
-          .sortBy { case (pN, _) => pN }
+        val value = oks.filter(_ != None)
+          .sortBy {
+            case None => -1
+            case Some(Proposal(pN, _)) => pN
+          }
           .headOption
-          .getOrElse((Some("tmp"),Some(v)))
-          ._2
+          .getOrElse(Some(Proposal(nn,v)))
           .get
-        botaa("Accept("+nn+", "+value+")")
-        acceptors.foreach(_ ! Accept(nn, value))
+        botaa("SEND Accept("+value+")")
+        acceptors.foreach(_ ! Accept(value))
         oks = Nil
       }
 
     //Caso de termos de enviar um novo prepare com um novo n
-    case PrepareAgain =>
-      quorum = quorum+1
+    case PrepareAgain(n) =>
+      botap("RECV PrepareAgain("+n+")")
+      quorum = quorum + 1
       if (quorum > acceptors.size / 2) {
-        nn = nn+1
-        quorum = 0
-        botap("Prepare("+nn+")")
+        nn = n.getOrElse(nn) + 1
+        botap("SEND Prepare("+nn+")")
         acceptors.foreach(_ ! Prepare(nn))
+        quorum = 0
       }
 
-    case AcceptOk(n) =>
-      acs = n +: acs
+    //Caso do accept falhar
+    case AcceptAgain(prop) =>
+      botaa("RECV AcceptAgain("+prop+")")
+      noks = prop +: noks
 
       //Quorum
-      if (acs.size > acceptors.size / 2) {
-        botad("Decided("+v+")")
-        acceptors.foreach(_ ! Decided(v))
-        acs = Nil
-        //Matar actor(?)
+      if (noks.size > acceptors.size / 2) {
+        //escolher o V da lista de oks com o N maior ou escolher o nosso v
+        val value = noks.filter(_ != None)
+          .sortBy {
+            case None => -1
+            case Some(Proposal(pN, _)) => pN
+          }
+          .headOption
+          .getOrElse(Some(Proposal(nn,v)))
+          .get
+        botaa("SEND Accept("+value+")")
+        acceptors.foreach(_ ! Accept(value))
+        noks = Nil
       }
+
+    //Caso nosso valor seja aceite
+    case AcceptOk(n) => {
+      //context.unbecome()
+    }
+
+    case Stop => {
+      nn        = 1
+      v         = Nil
+      oks       = Nil
+      noks      = Nil
+      quorum    = 0
+      sender ! Stop
+      context.unbecome()
+    }
+
+  }
+
+  def receive = {
+
+    case Servers(servers) => acceptors = servers
+
+    case Operation(op) =>
+      v = op
+      context.become(paxos(), discardOld = false)
 
   }
 }

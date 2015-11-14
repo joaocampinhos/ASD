@@ -1,23 +1,23 @@
 package paxos
 
-import akka.actor.Actor
+import akka.actor.{ActorSystem, Props, Actor, ActorRef, Deploy, AddressFromURIString}
 import akka.event.Logging
 
-class Learner extends Actor {
+class Learner(ref:ActorRef) extends Actor {
 
   val log = Logging(context.system, this)
 
   var decided = false
 
-  def bota(text: String) = { println(Console.RED+"["+self.path.name+"] "+Console.GREEN+text+Console.WHITE) }
-
   def receive = {
-    case Decided(v) => {
+    case Learn(v) =>
       if (!decided) {
         decided = true
-        bota("Decided("+v+")")
-        System.exit(0)
+        ref ! Learn(v)
+        //System.exit(0)
       }
-    }
+    case Stop =>
+      decided = false
+      sender ! Stop
   }
 }

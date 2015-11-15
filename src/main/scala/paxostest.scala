@@ -21,35 +21,34 @@ object Paxos {
   }
 
   class T extends Actor {
-
-    val system = ActorSystem("paxos")
+    import context.dispatcher
 
     var count:Int = 0
 
     //Criar 1 learner
     val learners = MutableList(
-      system.actorSelection(system.actorOf(Props(new Learner), name = "learner1").path),
-      system.actorSelection(system.actorOf(Props(new Learner), name = "learner2").path),
-      system.actorSelection(system.actorOf(Props(new Learner), name = "learner3").path)
+      context.actorSelection(context.actorOf(Props(new Learner), name = "learner1").path),
+      context.actorSelection(context.actorOf(Props(new Learner), name = "learner2").path),
+      context.actorSelection(context.actorOf(Props(new Learner), name = "learner3").path)
     )
 
     //Criar 1 acceptor
     val acceptors = MutableList(
-      system.actorSelection(system.actorOf(Props(new Acceptor), name = "acceptor1").path),
-      system.actorSelection(system.actorOf(Props(new Acceptor), name = "acceptor2").path),
-      system.actorSelection(system.actorOf(Props(new Acceptor), name = "acceptor3").path)
+      context.actorSelection(context.actorOf(Props(new Acceptor), name = "acceptor1").path),
+      context.actorSelection(context.actorOf(Props(new Acceptor), name = "acceptor2").path),
+      context.actorSelection(context.actorOf(Props(new Acceptor), name = "acceptor3").path)
     )
 
     //Criar 3 proposers
     val proposers = MutableList(
-      system.actorSelection(system.actorOf(Props(new Proposer), name = "proposer1").path),
-      system.actorSelection(system.actorOf(Props(new Proposer), name = "proposer2").path),
-      system.actorSelection(system.actorOf(Props(new Proposer), name = "proposer3").path)
+      context.actorSelection(context.actorOf(Props(new Proposer), name = "proposer1").path),
+      context.actorSelection(context.actorOf(Props(new Proposer), name = "proposer2").path),
+      context.actorSelection(context.actorOf(Props(new Proposer), name = "proposer3").path)
     )
 
     proposers.foreach(_ ! Servers(acceptors))
     acceptors.foreach(_ ! Servers(learners))
-    learners.foreach(_ ! Servers(MutableList(system.actorSelection(self.path))))
+    learners.foreach(_ ! Servers(MutableList(context.actorSelection(self.path))))
 
     proposers.head ! Operation("Olá")
     proposers.tail.head ! Operation("Olé")

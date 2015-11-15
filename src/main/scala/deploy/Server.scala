@@ -78,8 +78,6 @@ object Server {
           bota("Future leader is " + result)
           // actualLeader = Some(result) //TODO UNCOMMENT THIS
           sender ! TheLeaderIs(result)
-        case Success(result) =>
-          bota("Future leader is " + result)
         case Failure(failure) =>
           bota("There is no leader in the Future")
           actualLeader = None

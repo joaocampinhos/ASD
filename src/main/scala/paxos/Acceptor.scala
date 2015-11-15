@@ -8,7 +8,7 @@ import scala.util.Random
 class Acceptor extends Actor {
 
   val log = Logging(context.system, this)
-  var debug = true
+  var debug = false
 
   var learners: Seq[ActorSelection] = Nil
 
@@ -47,7 +47,8 @@ class Acceptor extends Actor {
         // botaa("SEND AcceptOk(" + prop.n + ")")
         sender ! AcceptOk(prop.n)
         botad("SEND Learn(" + prop.v + ")")
-        learners.foreach(_ ! Learn(prop.v))
+
+        learners.foreach(_ ! Learn((self.path, prop.v)))
       } else {
         // botaa("SEND AcceptAgain(" + last + ")")
         sender ! AcceptAgain(last)

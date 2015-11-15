@@ -66,6 +66,7 @@ object Client {
     def findLeader(op: Operation): Receive = { //TODO Exclude the case where every server has one vote
       case TheLeaderIs(l) => {
         leaderQuorum += l
+        println(leaderQuorum.size)
         if (leaderQuorum.size == serversURI.size) {
           // if (leaderQuorum.size == ) { //TODO the above line by this one
           val leaderAddress = leaderQuorum.groupBy(l => l).map(t => (t._1, t._2.length)).toList.sortBy(_._2).max
@@ -133,7 +134,7 @@ object Client {
 
     def resetRole() = {
       opsCounter match {
-        case clientConf.maxOpsNumber => 
+        case clientConf.maxOpsNumber =>
           bota("Executed all ops")
           context.stop(self) // Client has executed all operations
         case _ => {

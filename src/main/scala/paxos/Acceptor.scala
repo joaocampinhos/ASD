@@ -31,7 +31,7 @@ class Acceptor extends Actor {
 
     case Prepare(n) =>
       botap("RECV Prepare(" + n + ")")
-      if (np.map(_ <= n).getOrElse(true)) {
+      if (np.map(_ < n).getOrElse(true)) {
         np = Some(n)
         // botap("SEND PrepareOk(" + last + ")")
         sender ! PrepareOk(last)

@@ -28,7 +28,7 @@ object Server {
     var serversAddresses = HashMap[String, ActorRef]()
     var actualLeader: Option[ActorRef] = None
 
-    var paxos = context.actorOf(Props(new Paxost ()), name = "Paxos")
+    var paxos = context.actorOf(Props(new Paxos()), name = "Paxos")
 
     bota("Started")
 
@@ -51,7 +51,6 @@ object Server {
           //TODO CONTACT LEADER, if it fails execute paxos
           sender ! TheLeaderIs(l)
         case None =>
-          paxos ! Start(self)
           electLeader(sender)
       }
       case Get(key) =>
@@ -64,14 +63,14 @@ object Server {
     }
 
     def electLeader(sender: ActorRef) = {
-      implicit val timeout = Timeout(5.seconds)
-      paxos ? Start(self) onComplete {
+      implicit val timeout = Timeout(180.seconds)
+      paxos ? Start(self.path.name) onComplete {
         case Success(result: ActorRef) =>
           bota("Future leader is " + result)
           actualLeader = Some(result)
           sender ! TheLeaderIs(result)
         case Failure(failure) =>
-          bota("There is no leader in the Furute")
+          bota("There is no leader in the Future")
           actualLeader = None
       }
     }
@@ -82,8 +81,8 @@ object Server {
 
     var count: Int = 0
     context.actorOf(Props(new Learner(self)), name = "learner")
-    context.actorOf(Props(new Acceptor), name = "acceptor")
-    context.actorOf(Props(new Proposer), name = "proposer")
+    val myAcceptor = context.actorOf(Props(new Acceptor), name = "acceptor")
+    val myProposer = context.actorOf(Props(new Proposer), name = "proposer")
 
     val learners = new MutableList[ActorSelection]()
     val acceptors = new MutableList[ActorSelection]()
@@ -102,14 +101,15 @@ object Server {
           acceptors += context.actorSelection(e.path + "/Paxos/acceptor")
           learners += context.actorSelection(e.path + "/Paxos/learner")
         })
-        proposers.foreach(_ ! Servers(acceptors))
-        acceptors.foreach(_ ! Servers(learners))
 
-      case Start(v: ActorRef) =>
+        myProposer ! Servers(acceptors)
+        myAcceptor ! Servers(learners)
+
+      case Start(v) =>
         println("Starting " + self.path)
         toRespond = Some(sender)
-        proposers.foreach(e => e ! Operation(v))
-        proposers.foreach(_ ! Start)
+        myProposer ! Operation(v)
+        myProposer ! Start
 
       case Learn(v) =>
         count = count + 1

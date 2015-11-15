@@ -8,13 +8,13 @@ import scala.util.Random
 class Proposer extends Actor {
 
   val log = Logging(context.system, this)
-  var debug = false
+  var debug = true
 
   //Nossa tag
-  var nn:Int = 1
+  var nn: Int = 1
 
   //Valor inicial a propor
-  var v:Any = Nil
+  var v: Any = Nil
 
   var acceptors: Seq[ActorSelection] = Nil
 
@@ -23,23 +23,23 @@ class Proposer extends Actor {
 
   var quorum = 0
 
-  def botap(text: String) = { if (debug) println(Console.CYAN+"["+self.path.name+"] "+Console.YELLOW+text+Console.WHITE) }
-  def botaa(text: String) = { if (debug) println(Console.CYAN+"["+self.path.name+"] "+Console.BLUE+text+Console.WHITE) }
-  def botad(text: String) = { if (debug) println(Console.CYAN+"["+self.path.name+"] "+Console.GREEN+text+Console.WHITE) }
+  def botap(text: String) = { if (debug) println(Console.CYAN + "[" + self.path.name + "] " + Console.YELLOW + text + Console.WHITE) }
+  def botaa(text: String) = { if (debug) println(Console.CYAN + "[" + self.path.name + "] " + Console.BLUE + text + Console.WHITE) }
+  def botad(text: String) = { if (debug) println(Console.CYAN + "[" + self.path.name + "] " + Console.GREEN + text + Console.WHITE) }
 
-  def paxos() : Receive = {
+  def paxos(): Receive = {
 
     //turn on debug messages
     case Debug => debug = true
 
     // Enviar Prepare
     case Start =>
-      botap("SEND Prepare("+nn+")")
+      // botap("SEND Prepare(" + nn + ")")
       acceptors.foreach(_ ! Prepare(nn))
 
     // Esperar pelo PrepareOk(na, va)
     case PrepareOk(prop) =>
-      botap("RECV PrepareOk("+prop+")")
+      botap("RECV PrepareOk(" + prop + ")")
       oks = prop +: oks
 
       //Quorum
@@ -51,27 +51,27 @@ class Proposer extends Actor {
             case Some(Proposal(pN, _)) => pN
           }
           .headOption
-          .getOrElse(Some(Proposal(nn,v)))
+          .getOrElse(Some(Proposal(nn, v)))
           .get
-        botaa("SEND Accept("+value+")")
+        // botaa("SEND Accept(" + value + ")")
         acceptors.foreach(_ ! Accept(value))
         oks = Nil
       }
 
     //Caso de termos de enviar um novo prepare com um novo n
     case PrepareAgain(n) =>
-      botap("RECV PrepareAgain("+n+")")
+      botap("RECV PrepareAgain(" + n + ")")
       quorum = quorum + 1
       if (quorum > acceptors.size / 2) {
         nn = n.getOrElse(nn) + 1
-        botap("SEND Prepare("+nn+")")
+        // botap("SEND Prepare(" + nn + ")")
         acceptors.foreach(_ ! Prepare(nn))
         quorum = 0
       }
 
     //Caso do accept falhar
     case AcceptAgain(prop) =>
-      botaa("RECV AcceptAgain("+prop+")")
+      botaa("RECV AcceptAgain(" + prop + ")")
       noks = prop +: noks
 
       //Quorum
@@ -83,24 +83,25 @@ class Proposer extends Actor {
             case Some(Proposal(pN, _)) => pN
           }
           .headOption
-          .getOrElse(Some(Proposal(nn,v)))
+          .getOrElse(Some(Proposal(nn, v)))
           .get
-        botaa("SEND Accept("+value+")")
+        // botaa("SEND Accept(" + value + ")")
         acceptors.foreach(_ ! Accept(value))
         noks = Nil
       }
 
     //Caso nosso valor seja aceite
     case AcceptOk(n) => {
+      botaa("RECV AcceptOk(" + n + ")")
       //context.unbecome()
     }
 
     case Stop => {
-      nn        = 1
-      v         = Nil
-      oks       = Nil
-      noks      = Nil
-      quorum    = 0
+      nn = 1
+      v = Nil
+      oks = Nil
+      noks = Nil
+      quorum = 0
       sender ! Stop
       context.unbecome()
     }
@@ -117,5 +118,3 @@ class Proposer extends Actor {
 
   }
 }
-
-

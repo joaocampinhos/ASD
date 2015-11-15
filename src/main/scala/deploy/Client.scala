@@ -67,9 +67,9 @@ object Client {
     def findLeader(op: Operation): Receive = {
       case TheLeaderIs(l) => {
         leaderQuorum += l
-        if (leaderQuorum.size == serversURI.size) {
+        if (leaderQuorum.size > serversURI.size / 2) {
           val leaderAddress = leaderQuorum.groupBy(l => l).map(t => (t._1, t._2.length)).toList.sortBy(_._2).max
-          if (leaderAddress._2 == serversURI.size) {
+          if (leaderAddress._2 > serversURI.size / 2) {
             serverLeader = Some(leaderAddress._1)
             leaderQuorum = new MutableList[ActorRef]()
             sendToLeader(op, true)
@@ -79,7 +79,7 @@ object Client {
           }
         }
       }
-      case _ => bota("[Stage:Getting Leader Address] Received unknown message.")
+      case a :Any => bota("[Stage:Getting Leader Address] Received unknown message. "+a)
     }
 
     def sendToLeader(op: Operation, consecutiveError: Boolean) = {
@@ -128,8 +128,8 @@ object Client {
           bota("Executed all ops")
           context.stop(self) // Client has executed all operations
         case _ => {
-          scheduler.scheduleOnce(0.seconds, self, DoRequest)
           context.unbecome()
+          scheduler.scheduleOnce(0.seconds, self, DoRequest)
         }
       }
     }

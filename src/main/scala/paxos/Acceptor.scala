@@ -48,7 +48,7 @@ class Acceptor extends Actor {
         sender ! AcceptOk(prop.n)
         botad("SEND Learn(" + prop.v + ")")
 
-        learners.foreach(_ ! Learn((self.path, prop.v)))
+        learners.foreach(_ ! Learn( prop.v))
       } else {
         // botaa("SEND AcceptAgain(" + last + ")")
         sender ! AcceptAgain(last)

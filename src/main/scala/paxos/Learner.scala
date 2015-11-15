@@ -12,23 +12,23 @@ class Learner() extends Actor {
 
   var decided = false
   var quorum = 0
-  var msgs = MutableList[(String, Any)]()
+  var msgs = MutableList[Any]()
 
   def receive = {
     case Servers(servers) => parents = servers.toSeq
 
-    case Learn(v: (String, Any)) =>
+    case Learn(v:  Any) =>
       if (!decided) {
         quorum += 1
         msgs += v
         if (quorum >= calcQuorumDegree(parents.size)) {
           quorum = 0
           decided = true
-          val value = msgs.groupBy(l => l._2).map(t => (t._1.toString, t._2.length)).toList.sortBy(_._2).max
+          val value = msgs.groupBy(l => l).map(t => (t._1.toString, t._2.length)).toList.sortBy(_._2).max
           println("Q: " + calcQuorumDegree(parents.size) + "   Learner: RECV " + value._1)
-          var actor = msgs.filter( e => e._2.toString == value._1).toList.head
+          var actor = msgs.filter( e => e.toString == value._1).toList.head
           parents.foreach(e => e ! Learn(actor))
-          msgs = MutableList[(String, Any)]()
+          msgs = MutableList[Any]()
 
           //System.exit(0)
         }

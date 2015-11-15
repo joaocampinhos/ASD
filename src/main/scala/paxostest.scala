@@ -6,6 +6,7 @@ import akka.pattern.ask
 import akka.util.Timeout
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration._
+import scala.collection.mutable.MutableList
 
 object Paxos {
 
@@ -26,24 +27,24 @@ object Paxos {
     var count:Int = 0
 
     //Criar 1 learner
-    val learners = Seq(
-      system.actorOf(Props(new Learner(self)), name = "learner1"),
-      system.actorOf(Props(new Learner(self)), name = "learner2"),
-      system.actorOf(Props(new Learner(self)), name = "learner3")
+    val learners = MutableList(
+      context.actorSelection(system.actorOf(Props(new Learner), name = "learner1").path),
+      context.actorSelection(system.actorOf(Props(new Learner), name = "learner2").path),
+      context.actorSelection(system.actorOf(Props(new Learner), name = "learner3").path)
     )
 
     //Criar 1 acceptor
-    val acceptors = Seq(
-      system.actorOf(Props(new Acceptor), name = "acceptor1"),
-      system.actorOf(Props(new Acceptor), name = "acceptor2"),
-      system.actorOf(Props(new Acceptor), name = "acceptor3")
+    val acceptors = MutableList(
+      context.actorSelection(system.actorOf(Props(new Acceptor), name = "acceptor1").path),
+      context.actorSelection(system.actorOf(Props(new Acceptor), name = "acceptor2").path),
+      context.actorSelection(system.actorOf(Props(new Acceptor), name = "acceptor3").path)
     )
 
     //Criar 3 proposers
-    val proposers = Seq(
-      system.actorOf(Props(new Proposer), name = "proposer1"),
-      system.actorOf(Props(new Proposer), name = "proposer2"),
-      system.actorOf(Props(new Proposer), name = "proposer3")
+    val proposers = MutableList(
+      context.actorSelection(system.actorOf(Props(new Proposer), name = "proposer1").path),
+      context.actorSelection(system.actorOf(Props(new Proposer), name = "proposer2").path),
+      context.actorSelection(system.actorOf(Props(new Proposer), name = "proposer3").path)
     )
 
     proposers.foreach(_ ! Servers(acceptors))

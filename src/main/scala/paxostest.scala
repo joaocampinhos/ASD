@@ -7,16 +7,28 @@ import akka.util.Timeout
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration._
 import scala.collection.mutable.MutableList
+import collection.immutable.HashMap
 
 object Paxos {
+
+  case class ServersConf(servers: HashMap[String, ActorRef])
 
   def main(args: Array[String]) {
 
     val system = ActorSystem("paxos")
 
     val t = system.actorOf(Props(new T), name = "Test1")
+    val t1 = system.actorOf(Props(new T), name = "Test2")
 
-    t ! Start
+    var serversMap = HashMap[String, ActorRef](
+      t.path.name -> t,
+      t1.path.name -> t1
+    )
+
+    t ! ServersConf(serversMap)
+    t1 ! ServersConf(serversMap)
+    //t ! Start
+    //t1 ! Start
 
   }
 
@@ -27,28 +39,24 @@ object Paxos {
 
     //Criar 1 learner
     val learners = MutableList(
-      context.actorSelection(context.actorOf(Props(new Learner), name = "learner1").path),
-      context.actorSelection(context.actorOf(Props(new Learner), name = "learner2").path),
-      context.actorSelection(context.actorOf(Props(new Learner), name = "learner3").path)
+      context.actorSelection(context.actorOf(Props(new Learner), name = "learner").path)
     )
 
     //Criar 1 acceptor
     val acceptors = MutableList(
-      context.actorSelection(context.actorOf(Props(new Acceptor), name = "acceptor1").path),
-      context.actorSelection(context.actorOf(Props(new Acceptor), name = "acceptor2").path),
-      context.actorSelection(context.actorOf(Props(new Acceptor), name = "acceptor3").path)
+      context.actorSelection(context.actorOf(Props(new Acceptor), name = "acceptor").path)
     )
 
     //Criar 3 proposers
     val proposers = MutableList(
-      context.actorSelection(context.actorOf(Props(new Proposer), name = "proposer1").path),
-      context.actorSelection(context.actorOf(Props(new Proposer), name = "proposer2").path),
-      context.actorSelection(context.actorOf(Props(new Proposer), name = "proposer3").path)
+      context.actorSelection(context.actorOf(Props(new Proposer), name = "proposer").path)
     )
 
-    proposers.foreach(_ ! Servers(acceptors))
-    acceptors.foreach(_ ! Servers(learners))
-    learners.foreach(_ ! Servers(MutableList(context.actorSelection(self.path))))
+    val paxos = new MutableList[ActorSelection]()
+
+    //proposers.foreach(_ ! Servers(acceptors))
+    //acceptors.foreach(_ ! Servers(learners))
+    //learners.foreach(_ ! Servers(MutableList(context.actorSelection(self.path))))
 
     proposers.head ! Operation("Olá")
     proposers.tail.head ! Operation("Olé")
@@ -60,11 +68,23 @@ object Paxos {
     var done = false
 
     def receive = {
+
+      case ServersConf(s) =>
+        println(s)
+        s.values.foreach(e => {
+          proposers += context.actorSelection(e.path + "/Paxos/proposer")
+          acceptors += context.actorSelection(e.path + "/Paxos/acceptor")
+          learners += context.actorSelection(e.path + "/Paxos/learner")
+          paxos += context.actorSelection(e.path + "/Paxos")
+        })
+        proposers.foreach(_ ! Servers(acceptors))
+        acceptors.foreach(_ ! Servers(learners))
+        learners.foreach(_ ! Servers(paxos))
+
       case Start =>
         proposers.foreach(_ ! Start)
 
       case Learn(v) =>
-          println("DAFASDFASDFDAS")
         count = count + 1
 
         if (count == learners.size) {

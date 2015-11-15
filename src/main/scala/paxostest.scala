@@ -28,23 +28,23 @@ object Paxos {
 
     //Criar 1 learner
     val learners = MutableList(
-      context.actorSelection(system.actorOf(Props(new Learner), name = "learner1").path),
-      context.actorSelection(system.actorOf(Props(new Learner), name = "learner2").path),
-      context.actorSelection(system.actorOf(Props(new Learner), name = "learner3").path)
+      system.actorSelection(system.actorOf(Props(new Learner), name = "learner1").path),
+      system.actorSelection(system.actorOf(Props(new Learner), name = "learner2").path),
+      system.actorSelection(system.actorOf(Props(new Learner), name = "learner3").path)
     )
 
     //Criar 1 acceptor
     val acceptors = MutableList(
-      context.actorSelection(system.actorOf(Props(new Acceptor), name = "acceptor1").path),
-      context.actorSelection(system.actorOf(Props(new Acceptor), name = "acceptor2").path),
-      context.actorSelection(system.actorOf(Props(new Acceptor), name = "acceptor3").path)
+      system.actorSelection(system.actorOf(Props(new Acceptor), name = "acceptor1").path),
+      system.actorSelection(system.actorOf(Props(new Acceptor), name = "acceptor2").path),
+      system.actorSelection(system.actorOf(Props(new Acceptor), name = "acceptor3").path)
     )
 
     //Criar 3 proposers
     val proposers = MutableList(
-      context.actorSelection(system.actorOf(Props(new Proposer), name = "proposer1").path),
-      context.actorSelection(system.actorOf(Props(new Proposer), name = "proposer2").path),
-      context.actorSelection(system.actorOf(Props(new Proposer), name = "proposer3").path)
+      system.actorSelection(system.actorOf(Props(new Proposer), name = "proposer1").path),
+      system.actorSelection(system.actorOf(Props(new Proposer), name = "proposer2").path),
+      system.actorSelection(system.actorOf(Props(new Proposer), name = "proposer3").path)
     )
 
     proposers.foreach(_ ! Servers(acceptors))

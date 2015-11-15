@@ -23,6 +23,7 @@ case class Put(key: String, value: String) extends Operation
 case object WhoIsLeader
 case class TheLeaderIs(l: ActorRef)
 case object DoRequest
+case object Alive
 
 object Client {
 

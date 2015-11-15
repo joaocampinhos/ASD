@@ -9,6 +9,7 @@ case class Servers(s:MutableList[ActorSelection])
 case class Operation(v:Any)
 
 case object Start
+
 case class Start(v:Any)
 
 case object Stop

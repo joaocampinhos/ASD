@@ -8,7 +8,7 @@ import scala.util.Random
 class Proposer extends Actor {
 
   val log = Logging(context.system, this)
-  var debug = true
+  var debug = false
 
   //Nossa tag
   var nn: Int = 1
@@ -102,7 +102,7 @@ class Proposer extends Actor {
       oks = Nil
       noks = Nil
       quorum = 0
-      sender ! Stop
+      sender ! self.path
       context.unbecome()
     }
 

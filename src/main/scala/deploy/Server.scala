@@ -39,17 +39,25 @@ object Server {
         bota("Received addresses")
         serversAddresses = map
         paxos ! ServersConf(map)
-        // actualLeader = serversAddresses.get("Server0")//TODO REMOVE
         sender ! Success("Ok " + self.path.name)
         context.become(startJob(), discardOld = false)
       case _ => bota("[Stage: Waiting for servers' address] Received unknown message.")
     }
 
     def startJob(): Receive = {
+      case Alive => sender ! true
       case WhoIsLeader => actualLeader match {
         case Some(l) =>
-          //TODO CONTACT LEADER, if it fails execute paxos
-          sender ! TheLeaderIs(l)
+          val clt = sender
+          implicit val timeout = Timeout(180.seconds)
+          l ? Alive onComplete {
+            case Success(result) =>
+              bota("Leader alive: " + result)
+              clt ! TheLeaderIs(l)
+            case Failure(failure) =>
+              bota("Leader alive: " + failure)
+              electLeader(sender)
+          }
         case None =>
           electLeader(sender)
       }
@@ -64,10 +72,10 @@ object Server {
 
     def electLeader(sender: ActorRef) = {
       implicit val timeout = Timeout(180.seconds)
-      paxos ? Start(self.path.name) onComplete {
+      paxos ? Start(self) onComplete {
         case Success(result: ActorRef) =>
           bota("Future leader is " + result)
-          actualLeader = Some(result)
+           actualLeader = Some(result) //TODO UNCOMMENT THIS
           sender ! TheLeaderIs(result)
         case Failure(failure) =>
           bota("There is no leader in the Future")
@@ -80,18 +88,17 @@ object Server {
     import context.dispatcher
 
     var count: Int = 0
-    context.actorOf(Props(new Learner(self)), name = "learner")
+    val myLearner = context.actorOf(Props(new Learner), name = "learner")
     val myAcceptor = context.actorOf(Props(new Acceptor), name = "acceptor")
     val myProposer = context.actorOf(Props(new Proposer), name = "proposer")
 
     val learners = new MutableList[ActorSelection]()
     val acceptors = new MutableList[ActorSelection]()
     val proposers = new MutableList[ActorSelection]()
-
-    //proposers.foreach(_ ! Debug)
-    //acceptors.foreach(_ ! Debug)
+    val paxos = new MutableList[ActorSelection]()
 
     var done = false
+
     var toRespond: Option[ActorRef] = None
 
     def receive = {
@@ -100,13 +107,16 @@ object Server {
           proposers += context.actorSelection(e.path + "/Paxos/proposer")
           acceptors += context.actorSelection(e.path + "/Paxos/acceptor")
           learners += context.actorSelection(e.path + "/Paxos/learner")
+          paxos += context.actorSelection(e.path + "/Paxos")
         })
 
         myProposer ! Servers(acceptors)
         myAcceptor ! Servers(learners)
+        myLearner ! Servers(paxos)
+      // proposers.foreach(_ ! Debug)
+      // acceptors.foreach(_ ! Debug)
 
       case Start(v) =>
-        println("Starting " + self.path)
         toRespond = Some(sender)
         myProposer ! Operation(v)
         myProposer ! Start
@@ -116,27 +126,26 @@ object Server {
 
         if (count == learners.size) {
           count = 0
+          stopChild(myProposer)
+          stopChild(myAcceptor)
+          stopChild(myLearner)
           toRespond match {
             case Some(e) => e ! v
             case None => println("something is wrong")
           }
-          for (p <- proposers) {
-            implicit val timeout = Timeout(20 seconds)
-            val future = p ? Stop
-            val result = Await.result(future, timeout.duration)
-          }
-          for (p <- acceptors) {
-            implicit val timeout = Timeout(20 seconds)
-            val future = p ? Stop
-            val result = Await.result(future, timeout.duration)
-          }
-          for (p <- learners) {
-            implicit val timeout = Timeout(20 seconds)
-            val future = p ? Stop
-            val result = Await.result(future, timeout.duration)
-          }
+
         }
     }
-  }
 
+    def stopChild(child: ActorRef) = {
+      implicit val timeout = Timeout(30 seconds)
+      child ? Stop onComplete {
+        case Success(result) =>
+          println("Stop: " + result)
+        case Failure(failure) =>
+          println("Failed to stop: " + failure)
+      }
+
+    }
+  }
 }

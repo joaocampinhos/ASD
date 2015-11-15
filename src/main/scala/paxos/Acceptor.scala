@@ -8,7 +8,7 @@ import scala.util.Random
 class Acceptor extends Actor {
 
   val log = Logging(context.system, this)
-  var debug = true
+  var debug = false
 
   var learners: Seq[ActorSelection] = Nil
 
@@ -42,7 +42,6 @@ class Acceptor extends Actor {
 
     case Accept(prop) =>
       botaa("RECV Accept(" + prop + ")")
-      println("Old value" + np)
       if (np.map(_ <= prop.n).getOrElse(true)) {
         last = Some(prop)
         // botaa("SEND AcceptOk(" + prop.n + ")")
@@ -57,7 +56,7 @@ class Acceptor extends Actor {
     case Stop => {
       np = None
       last = None
-      sender ! Stop
+      sender ! self.path
     }
 
   }

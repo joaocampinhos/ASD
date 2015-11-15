@@ -54,7 +54,7 @@ class Proposer extends Actor {
           .getOrElse(Some(Proposal(nn, v)))
           .get
         botaa("SEND Accept(" + value + ")")
-        acceptors.foreach(_ ! Accept(Proposal(value.n + 1, value.v)))
+        acceptors.foreach(_ ! Accept(Accept(value))
         oks = Nil
       }
 

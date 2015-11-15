@@ -123,6 +123,7 @@ object Client {
       val isOpRead = rnd.nextInt(0, 101) <= clientConf.readsRate
       lastOpWasRead = Some(isOpRead)
       opsCounter += 1
+      bota("N_OP:" + opsCounter)
       if (isOpRead)
         Get(zipf.sample().toString)
       else {
@@ -132,7 +133,9 @@ object Client {
 
     def resetRole() = {
       opsCounter match {
-        case clientConf.maxOpsNumber => context.stop(self) // Client has executed all operations
+        case clientConf.maxOpsNumber => 
+          bota("Executed all ops")
+          context.stop(self) // Client has executed all operations
         case _ => {
           scheduler.scheduleOnce(0.seconds, self, DoRequest)
           context.unbecome()

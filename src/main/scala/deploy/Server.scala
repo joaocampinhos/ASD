@@ -127,22 +127,34 @@ object Server {
 
         if (count == learners.size) {
           count = 0
-          toRespond match {
-            case Some(e) => e ! v
-            case None => println("something is wrong")
-          }
-          stopChild(myProposer)
-          stopChild(myAcceptor)
-          stopChild(myLearner)
+          stopChild(myProposer, myAcceptor, myLearner, toRespond, v)
 
         }
     }
 
-    def stopChild(child: ActorRef) = {
+    def stopChild(child0: ActorRef, child1: ActorRef, child2: ActorRef, toRespond: Option[ActorRef], v: Any) = {
       implicit val timeout = Timeout(30 seconds)
-      child ? Stop onComplete {
+      child0 ? Stop onComplete {
         case Success(result) =>
           println("Stop: " + result)
+          child1 ? Stop onComplete {
+            case Success(result) =>
+              println("Stop: " + result)
+              child2 ? Stop onComplete {
+                case Success(result) =>
+                  println("Stop: " + result)
+                  toRespond match {
+                    case Some(e) => e ! v
+                    case None => println("something is wrong")
+                  }
+                case Failure(failure) =>
+                  println("Failed to stop: " + failure)
+              }
+
+            case Failure(failure) =>
+              println("Failed to stop: " + failure)
+          }
+
         case Failure(failure) =>
           println("Failed to stop: " + failure)
       }

@@ -49,6 +49,7 @@ object Paxos {
 
     proposers.foreach(_ ! Servers(acceptors))
     acceptors.foreach(_ ! Servers(learners))
+    learners.foreach(_ ! Servers(MutableList(system.actorSelection(self.path))))
 
     proposers.head ! Operation("Olá")
     proposers.tail.head ! Operation("Olé")
@@ -64,6 +65,7 @@ object Paxos {
         proposers.foreach(_ ! Start)
 
       case Learn(v) =>
+          println("DAFASDFASDFDAS")
         count = count + 1
 
         if (count == learners.size) {

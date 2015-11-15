@@ -58,9 +58,9 @@ object Paxos {
     //acceptors.foreach(_ ! Servers(learners))
     //learners.foreach(_ ! Servers(MutableList(context.actorSelection(self.path))))
 
-    proposers.head ! Operation("Olá")
-    proposers.tail.head ! Operation("Olé")
-    proposers.tail.tail.head ! Operation("Olí")
+    // proposers.head ! Operation("Olá")
+    // proposers.tail.head ! Operation("Olé")
+    // proposers.tail.tail.head ! Operation("Olí")
 
     //proposers.foreach(_ ! Debug)
     //acceptors.foreach(_ ! Debug)

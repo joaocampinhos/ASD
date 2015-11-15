@@ -8,7 +8,7 @@ import scala.util.Random
 class Proposer extends Actor {
 
   val log = Logging(context.system, this)
-  var debug = false
+  var debug = true
 
   //Nossa tag
   var nn: Int = 1
@@ -86,7 +86,7 @@ class Proposer extends Actor {
           .getOrElse(Some(Proposal(nn, v)))
           .get
         // botaa("SEND Accept(" + value + ")")
-        acceptors.foreach(_ ! Accept(Proposal(value.n+1,value.v)))
+        acceptors.foreach(_ ! Accept(value))
         noks = Nil
       }
 
@@ -97,6 +97,7 @@ class Proposer extends Actor {
     }
 
     case Stop => {
+      botaa("Reset")
       nn = 1
       v = Nil
       oks = Nil

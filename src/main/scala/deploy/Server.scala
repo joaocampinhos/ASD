@@ -49,15 +49,16 @@ object Server {
       case WhoIsLeader => actualLeader match {
         case Some(l) =>
           val clt = sender
-          implicit val timeout = Timeout(180.seconds)
-          l ? Alive onComplete {
-            case Success(result) =>
-              bota("Leader alive: " + result)
-              clt ! TheLeaderIs(l)
-            case Failure(failure) =>
-              bota("Leader alive: " + failure)
-              electLeader(sender)
-          }
+          clt ! l
+        // implicit val timeout = Timeout(180.seconds)
+        // l ? Alive onComplete {
+        //   case Success(result) =>
+        //     bota("Leader alive: " + result)
+        //     clt ! TheLeaderIs(l)
+        //   case Failure(failure) =>
+        //     bota("Leader alive: " + failure)
+        //     electLeader(sender)
+        // }
         case None =>
           electLeader(sender)
       }
@@ -75,8 +76,10 @@ object Server {
       paxos ? Start(self) onComplete {
         case Success(result: ActorRef) =>
           bota("Future leader is " + result)
-           actualLeader = Some(result) //TODO UNCOMMENT THIS
+          // actualLeader = Some(result) //TODO UNCOMMENT THIS
           sender ! TheLeaderIs(result)
+        case Success(result) =>
+          bota("Future leader is " + result)
         case Failure(failure) =>
           bota("There is no leader in the Future")
           actualLeader = None
@@ -113,8 +116,6 @@ object Server {
         myProposer ! Servers(acceptors)
         myAcceptor ! Servers(learners)
         myLearner ! Servers(paxos)
-      // proposers.foreach(_ ! Debug)
-      // acceptors.foreach(_ ! Debug)
 
       case Start(v) =>
         toRespond = Some(sender)
@@ -126,13 +127,13 @@ object Server {
 
         if (count == learners.size) {
           count = 0
-          stopChild(myProposer)
-          stopChild(myAcceptor)
-          stopChild(myLearner)
           toRespond match {
             case Some(e) => e ! v
             case None => println("something is wrong")
           }
+          stopChild(myProposer)
+          stopChild(myAcceptor)
+          stopChild(myLearner)
 
         }
     }

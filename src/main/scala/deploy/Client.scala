@@ -69,7 +69,8 @@ object Client {
         if (leaderQuorum.size == serversURI.size) {
           // if (leaderQuorum.size == ) { //TODO the above line by this one
           val leaderAddress = leaderQuorum.groupBy(l => l).map(t => (t._1, t._2.length)).toList.sortBy(_._2).max
-          if (leaderAddress._2 >= calcQuorumDegree(serversURI.size)) {
+          if (leaderAddress._2 == serversURI.size) {
+            // if (leaderAddress._2 >= calcQuorumDegree(serversURI.size)) {
             serverLeader = Some(leaderAddress._1)
             leaderQuorum = new MutableList[ActorRef]()
             sendToLeader(op, true)
@@ -97,8 +98,12 @@ object Client {
               sendToAll(op, consecutiveError)
           }
         }
-        case None => sendToAll(op, consecutiveError)
+        case None =>
+          sendToAll(op, consecutiveError)
+
       }
+      serverLeader = None
+
     }
 
     def sendToAll(op: Operation, consecutiveError: Boolean) = {

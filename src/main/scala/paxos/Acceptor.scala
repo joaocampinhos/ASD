@@ -8,7 +8,7 @@ import scala.util.Random
 class Acceptor extends Actor {
 
   val log = Logging(context.system, this)
-  var debug = false
+  var debug = true
 
   var learners: Seq[ActorSelection] = Nil
 
@@ -54,6 +54,7 @@ class Acceptor extends Actor {
       }
 
     case Stop => {
+      botaa("Reset")
       np = None
       last = None
       sender ! self.path

@@ -79,7 +79,7 @@ object Client {
           }
         }
       }
-      case _ => bota("[Stage:Getting Leader Address] Received unknown message.")
+      case a :Any => bota("[Stage:Getting Leader Address] Received unknown message. "+a)
     }
 
     def sendToLeader(op: Operation, consecutiveError: Boolean) = {
@@ -128,8 +128,8 @@ object Client {
           bota("Executed all ops")
           context.stop(self) // Client has executed all operations
         case _ => {
-          scheduler.scheduleOnce(0.seconds, self, DoRequest)
           context.unbecome()
+          scheduler.scheduleOnce(0.seconds, self, DoRequest)
         }
       }
     }

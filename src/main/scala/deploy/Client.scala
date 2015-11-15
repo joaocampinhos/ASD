@@ -39,7 +39,6 @@ object Client {
 
   class ClientActor(serversURI: HashMap[String, ActorRef], clientConf: ClientConf) extends Actor {
     import context.dispatcher
-    println(serversURI.size)
 
     val log = Logging(context.system, this)
     def scheduler = context.system.scheduler
@@ -49,11 +48,13 @@ object Client {
     var serverLeader: Option[ActorRef] = None
     var leaderQuorum = new MutableList[ActorRef]()
     var opsCounter = 0
+    var alzheimer = true
+    var debug  = true
     scheduler.scheduleOnce(1.seconds, self, DoRequest)
 
     bota("Started")
 
-    def bota(text: String) = { println(Console.MAGENTA + "[" + self.path.name + "] " + Console.YELLOW + text + Console.WHITE) }
+    def bota(text: String) = {if (debug)  println(Console.MAGENTA + "[" + self.path.name + "] " + Console.YELLOW + text + Console.WHITE) }
 
     def receive = {
       case DoRequest =>
@@ -63,21 +64,17 @@ object Client {
       case _ => bota("[Stage: Operation's preparation] Received unknown message.")
     }
 
-    def findLeader(op: Operation): Receive = { //TODO Exclude the case where every server has one vote
+    def findLeader(op: Operation): Receive = {
       case TheLeaderIs(l) => {
         leaderQuorum += l
-        println(leaderQuorum.size)
         if (leaderQuorum.size == serversURI.size) {
-          // if (leaderQuorum.size == ) { //TODO the above line by this one
           val leaderAddress = leaderQuorum.groupBy(l => l).map(t => (t._1, t._2.length)).toList.sortBy(_._2).max
           if (leaderAddress._2 == serversURI.size) {
-            // if (leaderAddress._2 >= calcQuorumDegree(serversURI.size)) {
             serverLeader = Some(leaderAddress._1)
             leaderQuorum = new MutableList[ActorRef]()
             sendToLeader(op, true)
           } else {
             bota("Cluster has no leader")
-            // resetRole()//TODO Handle the consecutive error
             context.stop(self)
           }
         }
@@ -103,21 +100,14 @@ object Client {
           sendToAll(op, consecutiveError)
 
       }
-      serverLeader = None
-
+      if(alzheimer)
+        serverLeader = None //REMOVE ON FINAL STAGE
     }
 
     def sendToAll(op: Operation, consecutiveError: Boolean) = {
       bota("Finding leader")
       serversURI.values.foreach(e => e ! WhoIsLeader)
       context.become(findLeader(op), discardOld = consecutiveError)
-    }
-
-    def calcQuorumDegree(value: Int): Int = {
-      var res = Math.round(value / 2.0).toInt
-      if (value % 2 == 0 && value > 2)
-        res += 1
-      res
     }
 
     def createOperation(): Operation = {

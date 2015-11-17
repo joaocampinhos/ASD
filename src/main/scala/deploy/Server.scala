@@ -31,26 +31,30 @@ object Server {
     var alzheimer = true
     var debug = true
 
-    var view = new View(0, serversAddresses.values.toList, List[Action]())
+    var view = new View(0, MutableList[ActorRef](), MutableList[Action]())
     var paxos = context.actorOf(Props(new littlePaxos()), name = "Paxos")
+
+    override def preStart(): Unit = {
+        context.become(waitForData(), discardOld = false)
+    }
 
     bota("Started")
 
     def bota(text: String) = { if (debug) println(Console.RED + "[" + self.path.name + "] " + Console.GREEN + text + Console.WHITE) }
 
-    def receive(): Receive = {
+    def waitForData(): Receive = {
       case ServersConf(map) =>
         bota("Received addresses")
         serversAddresses = map
         paxos ! ServersConf(map)
-        context.become(startJob(), discardOld = false)
+        context.unbecome()
         sender ! Success("Ok " + self.path.name)
       case _ => bota("[Stage: Waiting for servers' address] Received unknown message.")
     }
 
-    def startJob(): Receive = {
+    def receive(): Receive = {
       case Alive =>
-        bota("I am the leader")
+        bota("I'm alive")
         sender ! true
       case WhoIsLeader => actualLeader match {
         case Some(l) =>

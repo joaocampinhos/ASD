@@ -23,6 +23,7 @@ object Server {
 
   case class ServerActor() extends Actor {
     import context.dispatcher
+
     val log = Logging(context.system, this)
     var store = scala.collection.mutable.HashMap[String, String]()
     var serversAddresses = HashMap[String, ActorRef]()
@@ -30,6 +31,7 @@ object Server {
     var alzheimer = true
     var debug = true
 
+    var view = new View(0, serversAddresses.values.toList, List[Action]())
     var paxos = context.actorOf(Props(new littlePaxos()), name = "Paxos")
 
     bota("Started")
@@ -41,8 +43,8 @@ object Server {
         bota("Received addresses")
         serversAddresses = map
         paxos ! ServersConf(map)
-        sender ! Success("Ok " + self.path.name)
         context.become(startJob(), discardOld = false)
+        sender ! Success("Ok " + self.path.name)
       case _ => bota("[Stage: Waiting for servers' address] Received unknown message.")
     }
 
@@ -79,8 +81,8 @@ object Server {
       paxos ? Start(self) onComplete {
         case Success(result: ActorRef) =>
           bota("Future leader is " + result)
-           actualLeader = Some(result)
-          if (alzheimer)//TODO CAREFULL
+          actualLeader = Some(result)
+          if (alzheimer) //TODO CAREFULL
             actualLeader = None
           sender ! TheLeaderIs(result)
         case Failure(failure) =>

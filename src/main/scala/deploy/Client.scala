@@ -16,14 +16,7 @@ import akka.util.Timeout
 import scala.concurrent.duration._
 import scala.util.Failure
 import scala.util.Success
-
-abstract class Operation
-case class Get(key: String) extends Operation
-case class Put(key: String, value: String) extends Operation
-case object WhoIsLeader
-case class TheLeaderIs(l: ActorRef)
-case object DoRequest
-case object Alive
+import paxos._
 
 object Client {
 
@@ -64,7 +57,7 @@ object Client {
       case _ => bota("[Stage: Operation's preparation] Received unknown message.")
     }
 
-    def findLeader(op: Operation): Receive = {
+    def findLeader(op: Action): Receive = {
       case TheLeaderIs(l) => {
         leaderQuorum += l
         if (leaderQuorum.size > serversURI.size / 2) {
@@ -82,7 +75,7 @@ object Client {
       case a :Any => bota("[Stage:Getting Leader Address] Received unknown message. "+a)
     }
 
-    def sendToLeader(op: Operation, consecutiveError: Boolean) = {
+    def sendToLeader(op: Action, consecutiveError: Boolean) = {
       serverLeader match {
         case Some(l) => {
           implicit val timeout = Timeout(5.seconds)
@@ -104,13 +97,13 @@ object Client {
         serverLeader = None //REMOVE ON FINAL STAGE
     }
 
-    def sendToAll(op: Operation, consecutiveError: Boolean) = {
+    def sendToAll(op: Action, consecutiveError: Boolean) = {
       bota("Finding leader")
-      serversURI.values.foreach(e => e ! WhoIsLeader)
       context.become(findLeader(op), discardOld = consecutiveError)
+      serversURI.values.foreach(e => e ! WhoIsLeader)
     }
 
-    def createOperation(): Operation = {
+    def createOperation(): Action = {
       val isOpRead = rnd.nextInt(0, 101) <= clientConf.readsRate
       lastOpWasRead = Some(isOpRead)
       opsCounter += 1

@@ -35,7 +35,7 @@ object Server {
     var paxos = context.actorOf(Props(new littlePaxos()), name = "Paxos")
 
     override def preStart(): Unit = {
-        context.become(waitForData(), discardOld = false)
+      context.become(waitForData(), discardOld = false)
     }
 
     bota("Started")
@@ -56,31 +56,39 @@ object Server {
       case Alive =>
         bota("I'm alive")
         sender ! true
-      case WhoIsLeader => actualLeader match {
-        case Some(l) =>
-          val clt = sender
-          implicit val timeout = Timeout(180.seconds)
-          l ? Alive onComplete {
-            case Success(result) =>
-              bota("Leader alive: " + result)
-              clt ! TheLeaderIs(l)
-            case Failure(failure) =>
-              bota("Leader alive: " + failure)
-              electLeader(clt)
-          }
-        case None =>
-          electLeader(sender)
-      }
+      case WhoIsLeader => heartbeatThenResp(sender)
       case Get(key) =>
-        bota(key)
-        sender ! Success("Get: " + key)
+        val result = store.get(key)
+        bota("Get:(" + key + "," + result + ")")
+        sender ! Success(result)
       case Put(key, value) =>
         bota(key + " " + value)
         sender ! Success("Put: " + key + ", " + value)
       case _ => bota("[Stage: Responding to Get/Put] Received unknown message.")
     }
 
-    def electLeader(sender: ActorRef) = {
+    def heartbeatThenResp(respondTo: ActorRef) = {
+      actualLeader match {
+        case Some(l) =>
+          if (l == self)
+            sender ! TheLeaderIs(l)
+          else {
+            implicit val timeout = Timeout(180.seconds)
+            l ? Alive onComplete {
+              case Success(result) =>
+                bota("Leader is alive: " + result)
+                respondTo ! TheLeaderIs(l)
+              case Failure(failure) =>
+                bota("Leader is alive: " + failure)
+                electLeaderThenResp(respondTo)
+            }
+          }
+        case None =>
+          electLeaderThenResp(respondTo)
+      }
+    }
+
+    def electLeaderThenResp(sender: ActorRef) = {
       implicit val timeout = Timeout(180.seconds)
       paxos ? Start(self) onComplete {
         case Success(result: ActorRef) =>
@@ -90,7 +98,7 @@ object Server {
             actualLeader = None
           sender ! TheLeaderIs(result)
         case Failure(failure) =>
-          bota("There is no leader in the Future")
+          bota("There is no leader for the Future")
           actualLeader = None
       }
     }

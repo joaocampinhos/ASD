@@ -71,7 +71,7 @@ object Server {
       actualLeader match {
         case Some(l) =>
           if (l == self)
-            sender ! TheLeaderIs(l)
+            respondTo ! TheLeaderIs(l)
           else {
             implicit val timeout = Timeout(180.seconds)
             l ? Alive onComplete {
@@ -79,7 +79,7 @@ object Server {
                 bota("Leader is alive: " + result)
                 respondTo ! TheLeaderIs(l)
               case Failure(failure) =>
-                bota("Leader is alive: " + failure)
+                bota("Failure: " + failure)
                 electLeaderThenResp(respondTo)
             }
           }
@@ -92,7 +92,7 @@ object Server {
       implicit val timeout = Timeout(180.seconds)
       paxos ? Start(self) onComplete {
         case Success(result: ActorRef) =>
-          bota("Future leader is " + result)
+          bota("Future leader is " + result.path.name)
           actualLeader = Some(result)
           if (alzheimer) //TODO CAREFULL
             actualLeader = None

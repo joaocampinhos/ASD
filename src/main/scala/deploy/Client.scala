@@ -37,17 +37,16 @@ object Client {
     def scheduler = context.system.scheduler
     val zipf = new ZipfDistribution(clientConf.zipfNumber, 1)
     val rnd = ThreadLocalRandom.current
-    var lastOpWasRead: Option[Boolean] = None
     var serverLeader: Option[ActorRef] = None
     var leaderQuorum = new MutableList[ActorRef]()
     var opsCounter = 0
     var alzheimer = true
-    var debug  = true
+    var debug = true
     scheduler.scheduleOnce(1.seconds, self, DoRequest)
 
     bota("Started")
 
-    def bota(text: String) = {if (debug)  println(Console.MAGENTA + "[" + self.path.name + "] " + Console.YELLOW + text + Console.WHITE) }
+    def bota(text: String) = { if (debug) println(Console.MAGENTA + "[" + self.path.name + "] " + Console.YELLOW + text + Console.WHITE) }
 
     def receive = {
       case DoRequest =>
@@ -57,7 +56,7 @@ object Client {
       case _ => bota("[Stage: Operation's preparation] Received unknown message.")
     }
 
-    def findLeader(op: Action): Receive = {
+    def waitingForLeaderInfo(op: Action): Receive = {
       case TheLeaderIs(l) => {
         leaderQuorum += l
         if (leaderQuorum.size > serversURI.size / 2) {
@@ -72,7 +71,7 @@ object Client {
           }
         }
       }
-      case a :Any => bota("[Stage:Getting Leader Address] Received unknown message. "+a)
+      case a: Any => bota("[Stage:Getting Leader Address] Received unknown message. " + a)
     }
 
     def sendToLeader(op: Action, consecutiveError: Boolean) = {
@@ -81,34 +80,31 @@ object Client {
           implicit val timeout = Timeout(5.seconds)
           l ? op onComplete {
             case Success(result) =>
-              bota("Sent " + result + " to " + l.path.name)
+              bota("Op result: " + result)
               resetRole()
             case Failure(failure) =>
-              bota("Failed to send " + op + " to " + l.path.name + ".Reason: " + failure)
+              bota("Op failed: " + failure)
               serverLeader = None
-              sendToAll(op, consecutiveError)
+              findLeader(op, consecutiveError)
           }
         }
         case None =>
-          sendToAll(op, consecutiveError)
-
+          findLeader(op, consecutiveError)
       }
-      if(alzheimer)
+      if (alzheimer)
         serverLeader = None //REMOVE ON FINAL STAGE
     }
 
-    def sendToAll(op: Action, consecutiveError: Boolean) = {
+    def findLeader(op: Action, consecutiveError: Boolean) = {
       bota("Finding leader")
-      context.become(findLeader(op), discardOld = consecutiveError)
+      context.become(waitingForLeaderInfo(op), discardOld = consecutiveError)
       serversURI.values.foreach(e => e ! WhoIsLeader)
     }
 
     def createOperation(): Action = {
-      val isOpRead = rnd.nextInt(0, 101) <= clientConf.readsRate
-      lastOpWasRead = Some(isOpRead)
       opsCounter += 1
       bota("N_OP:" + opsCounter)
-      if (isOpRead)
+      if (rnd.nextInt(0, 101) <= clientConf.readsRate)
         Get(zipf.sample().toString)
       else {
         Put(zipf.sample().toString, zipf.sample().toString)

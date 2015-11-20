@@ -62,6 +62,7 @@ object Server {
         bota("Get:(" + key + "," + result + ")")
         sender ! Success(result)
       case Put(key, value) =>
+        store+=(key -> value)
         bota(key + " " + value)
         sender ! Success("Put: " + key + ", " + value)
       case _ => bota("[Stage: Responding to Get/Put] Received unknown message.")

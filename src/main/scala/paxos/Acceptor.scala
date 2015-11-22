@@ -51,7 +51,7 @@ class Acceptor extends Actor {
         learners.foreach(_ ! Learn( prop.v))
       } else {
         // botaa("SEND AcceptAgain(" + last + ")")
-        sender ! AcceptAgain(last)
+        sender ! AcceptAgain(np.get, last)
       }
 
     case Stop => {

@@ -20,6 +20,7 @@ class Proposer extends Actor {
 
   var oks: Seq[Option[Proposal]] = Nil
   var noks: Seq[Option[Proposal]] = Nil
+  var biga: Int = 0
 
   var quorum = 0
 
@@ -70,7 +71,8 @@ class Proposer extends Actor {
       }
 
     //Caso do accept falhar
-    case AcceptAgain(prop) =>
+    case AcceptAgain(n, prop) =>
+      if (n > biga) biga = n
       botaa("RECV AcceptAgain(" + prop + ")")
       noks = prop +: noks
 
@@ -86,8 +88,9 @@ class Proposer extends Actor {
           .getOrElse(Some(Proposal(nn, v)))
           .get
         // botaa("SEND Accept(" + value + ")")
-        acceptors.foreach(_ ! Accept(Proposal(value.n,value.n)))
+        acceptors.foreach(_ ! Accept(Proposal(biga,value.n)))
         noks = Nil
+        biga = 0
       }
 
     //Caso nosso valor seja aceite

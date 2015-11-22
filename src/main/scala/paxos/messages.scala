@@ -28,6 +28,6 @@ case class Accept(m:Proposal)
 
 case class AcceptOk(n:Int)
 
-case class AcceptAgain(m:Option[Proposal])
+case class AcceptAgain(t: Int, m:Option[Proposal])
 
 case class Learn(v:Any)

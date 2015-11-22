@@ -41,7 +41,6 @@ object Client {
     var serverLeader: Option[ActorRef] = None
     var leaderQuorum = new MutableList[ActorRef]()
     var opsCounter = 0
-    var waiting  = true
     var alzheimer = true
     var debug = true
     var timeoutScheduler: Option[Cancellable] = None
@@ -63,19 +62,17 @@ object Client {
       case "timeout" =>
         bota("Timeout")
         findLeader(op, true)
-      case o @ TheLeaderIs(l) if waiting == true => {
+      case TheLeaderIs(l)  => {
         leaderQuorum += l
         println(leaderQuorum.size)
-        if (leaderQuorum.size == serversURI.size) {
+        if (leaderQuorum.size > serversURI.size / 2) {
           val leaderAddress = leaderQuorum.groupBy(l => l).map(t => (t._1, t._2.length)).toList.sortBy(_._2).max
           if (leaderAddress._2 > serversURI.size / 2) {
             serverLeader = Some(leaderAddress._1)
-            waiting  = false
             sendToLeader(op, true)
-            waiting  = true
           } else {
-            bota("Cluster has no leader")
-            context.stop(self)
+        bota("Timeout")
+        findLeader(op, true)
           }
         }
       }

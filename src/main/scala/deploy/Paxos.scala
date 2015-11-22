@@ -72,10 +72,12 @@ object Paxos {
 
     def receive = {
       case Start(v) =>
+        if (toRespond.size < totalServers) {
         toRespond += sender
         proposers(toRespond.size - 1) ! Operation(v)
         if (toRespond.size == totalServers) {
           proposers.foreach(p => p ! Go)
+        }
         }
       case Learn(v) =>
         count = count + 1
@@ -83,7 +85,7 @@ object Paxos {
           bota("learned " + v)
           count = 0
           for (p <- proposers) {
-            implicit val timeout = Timeout(20 seconds)
+            implicit val timeout = Timeout(50 seconds)
             val future = p ? Stop
             future onComplete {
               case Success(result) => bota(result)
@@ -91,7 +93,7 @@ object Paxos {
             }
           }
           for (p <- acceptors) {
-            implicit val timeout = Timeout(20 seconds)
+            implicit val timeout = Timeout(50 seconds)
             val future = p ? Stop
             future onComplete {
               case Success(result) => bota(result)
@@ -99,7 +101,7 @@ object Paxos {
             }
           }
           for (p <- learners) {
-            implicit val timeout = Timeout(20 seconds)
+            implicit val timeout = Timeout(50 seconds)
             val future = p ? Stop
             future onComplete {
               case Success(result) => bota(result)
@@ -109,7 +111,6 @@ object Paxos {
           for (p <- toRespond) {
             p ! v
           }
-          count = 0
           toRespond = new MutableList[ActorRef]()
         }
     }

@@ -21,7 +21,7 @@ import scala.concurrent.duration._
 object Server {
   case class ServersConf(servers: HashMap[String, ActorRef])
 
-  case class ServerActor() extends Actor {
+  case class ServerActor(paxos: ActorRef) extends Actor {
     import context.dispatcher
 
     val log = Logging(context.system, this)
@@ -32,7 +32,6 @@ object Server {
     var debug = true
 
     var view = new View(0, MutableList[ActorRef](), MutableList[Action]())
-    var paxos = context.actorOf(Props(new littlePaxos()), name = "Paxos")
 
     override def preStart(): Unit = {
       context.become(waitForData(), discardOld = false)

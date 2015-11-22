@@ -1,6 +1,6 @@
 package paxos
 
-import akka.actor._
+import akka.actor.Actor
 import akka.actor.ActorRef
 import akka.event.Logging
 import scala.util.Random
@@ -16,7 +16,7 @@ class Proposer extends Actor {
   //Valor inicial a propor
   var v: Any = Nil
 
-  var acceptors: Seq[ActorSelection] = Nil
+  var acceptors: Seq[ActorRef] = Nil
 
   var oks: Seq[Option[Proposal]] = Nil
   var noks: Seq[Option[Proposal]] = Nil
@@ -32,9 +32,12 @@ class Proposer extends Actor {
     //turn on debug messages
     case Debug => debug = true
 
+    case Start(value) =>
+      v = value
+      println("received my value")
     // Enviar Prepare
-    case Start =>
-      // botap("SEND Prepare(" + nn + ")")
+    case Go =>
+      botap("SEND Prepare(" + nn + ")")
       acceptors.foreach(_ ! Prepare(nn))
 
     // Esperar pelo PrepareOk(na, va)
@@ -53,7 +56,7 @@ class Proposer extends Actor {
           .headOption
           .getOrElse(Some(Proposal(nn, v)))
           .get
-        // botaa("SEND Accept(" + value + ")")
+        botaa("SEND Accept(" + value + ")")
         acceptors.foreach(_ ! Accept(value))
         oks = Nil
       }
@@ -62,9 +65,9 @@ class Proposer extends Actor {
     case PrepareAgain(n) =>
       botap("RECV PrepareAgain(" + n + ")")
       quorum = quorum + 1
-     if (quorum > acceptors.size / 2) {
+      if (quorum > acceptors.size / 2) {
         nn = n.getOrElse(nn) + 1
-        // botap("SEND Prepare(" + nn + ")")
+        botap("SEND Prepare(" + nn + ")")
         acceptors.foreach(_ ! Prepare(nn))
         quorum = 0
       }
@@ -85,25 +88,23 @@ class Proposer extends Actor {
           .headOption
           .getOrElse(Some(Proposal(nn, v)))
           .get
-        // botaa("SEND Accept(" + value + ")")
-        acceptors.foreach(_ ! Accept(Proposal(value.n,value.n)))
+        botaa("SEND Accept(" + value + ")")
+        acceptors.foreach(_ ! Accept(value))
         noks = Nil
       }
 
     //Caso nosso valor seja aceite
     case AcceptOk(n) => {
-      botaa("RECV AcceptOk(" + n + ")")
       //context.unbecome()
     }
 
     case Stop => {
-      botaa("Reset")
       nn = 1
       v = Nil
       oks = Nil
       noks = Nil
       quorum = 0
-      sender ! self.path
+      sender ! Stop
       context.unbecome()
     }
 
@@ -111,7 +112,7 @@ class Proposer extends Actor {
 
   def receive = {
 
-    case Servers(servers) => acceptors = servers.toSeq
+    case Servers(servers) => acceptors = servers
 
     case Operation(op) =>
       v = op

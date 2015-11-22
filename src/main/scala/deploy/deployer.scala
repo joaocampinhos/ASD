@@ -7,6 +7,7 @@ import akka.remote.RemoteScope
 import akka.event.Logging
 import deploy.Server._
 import deploy.Client._
+import deploy.Paxos.PaxosActor
 import scala.concurrent.duration._
 import scala.concurrent.Await
 import akka.pattern.ask
@@ -20,10 +21,12 @@ object Deployer {
     val remoteSettings = args.toList
     val config = ConfigFactory.load("deployer")
     val system = ActorSystem(config.getString("deployer.name"), config)
+    var totalServers = config.getInt("totalServers")
+    var paxos = system.actorOf(Props(new PaxosActor(totalServers)), name = "Paxos")
     var serversMap = HashMap[String, ActorRef]()
     var clientsMap = HashMap[String, ActorRef]()
 
-    deployServers(0 to config.getInt("totalServers") - 1)
+    deployServers(0 to totalServers - 1)
     serversMap.values.map(e => {
       import scala.concurrent.ExecutionContext.Implicits.global
       implicit val timeout = Timeout(5 seconds)
@@ -32,12 +35,11 @@ object Deployer {
         case Success(result) => println(result)
         case Failure(failure) => println(failure)
       }
-
     })
-    deployClients(0 to config.getInt("totalClients") - 1)
+    deployClients(0 to config.getInt("totalClients")- 1)
 
     def createServer(remotePath: String, serverIdx: Int): ActorRef = {
-      system.actorOf(Props(classOf[ServerActor])
+      system.actorOf(Props(classOf[ServerActor], paxos)
         .withDeploy(Deploy(scope = RemoteScope(AddressFromURIString(remotePath)))), "Server" + serverIdx)
     }
 

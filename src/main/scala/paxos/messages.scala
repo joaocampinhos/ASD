@@ -4,11 +4,13 @@ import scala.collection.mutable.MutableList
 
 case object Debug
 
-case class Servers(s: MutableList[ActorSelection])
+case class Servers(s:Seq[ActorRef])
+// case class Servers(s: MutableList[ActorRef])
 
 case class Operation(v: Any) extends Action
 
 case object Start
+case object Go
 
 case class Start(v: Any)
 

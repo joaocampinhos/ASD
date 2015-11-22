@@ -17,98 +17,97 @@ import akka.pattern.ask
 import akka.util.Timeout
 import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.concurrent.duration._
+import scala.concurrent.duration._
+import scala.concurrent.Await
+import akka.pattern.ask
+import akka.util.Timeout
 
-class littlePaxos() extends Actor {
-  import context.dispatcher
+object Paxos {
+  class littlePaxos() extends Actor {
+    import context.dispatcher
 
-  var toRespond: Option[ActorRef] = None
-  var servers: HashMap[String, ActorRef] = HashMap[String, ActorRef]()
+    var toRespond: Option[ActorRef] = None
+    var servers: HashMap[String, ActorRef] = HashMap[String, ActorRef]()
 
-  def receive = {
-    case Server.ServersConf(map) =>
-      servers = map
-    case Start(v) =>
-      toRespond = Some(sender)
-      self ! Learn(servers.values.head)
-    case Learn(v) =>
-      toRespond match {
-        case Some(e) => e ! v
-        case None => println("something is wrong")
-      }
-  }
-}
-
-class Paxos() extends Actor {
-  import context.dispatcher
-
-  var count: Int = 0
-  val myLearner = context.actorOf(Props(new Learner), name = "learner")
-  val myAcceptor = context.actorOf(Props(new Acceptor), name = "acceptor")
-  val myProposer = context.actorOf(Props(new Proposer), name = "proposer")
-
-  val learners = new MutableList[ActorSelection]()
-  val acceptors = new MutableList[ActorSelection]()
-  val proposers = new MutableList[ActorSelection]()
-  val paxos = new MutableList[ActorSelection]()
-
-  var done = false
-
-  var toRespond: Option[ActorRef] = None
-
-  def receive = {
-    case Server.ServersConf(map) =>
-      map.values.foreach(e => {
-        proposers += context.actorSelection(e.path + "/Paxos/proposer")
-        acceptors += context.actorSelection(e.path + "/Paxos/acceptor")
-        learners += context.actorSelection(e.path + "/Paxos/learner")
-        paxos += context.actorSelection(e.path + "/Paxos")
-      })
-
-      myProposer ! Servers(acceptors)
-      myAcceptor ! Servers(learners)
-      myLearner ! Servers(paxos)
-
-    case Start(v) =>
-      toRespond = Some(sender)
-      myProposer ! Operation(v)
-      myProposer ! Start
-
-    case Learn(v) =>
-      count = count + 1
-
-      if (count == learners.size) {
-        count = 0
-        stopChild(myProposer, myAcceptor, myLearner, toRespond, v)
-
-      }
-  }
-
-  def stopChild(child0: ActorRef, child1: ActorRef, child2: ActorRef, toRespond: Option[ActorRef], v: Any) = {
-    implicit val timeout = Timeout(30 seconds)
-    child0 ? Stop onComplete {
-      case Success(result) =>
-        println("Stop: " + result)
-        child1 ? Stop onComplete {
-          case Success(result) =>
-            println("Stop: " + result)
-            child2 ? Stop onComplete {
-              case Success(result) =>
-                println("Stop: " + result)
-                toRespond match {
-                  case Some(e) => e ! v
-                  case None => println("something is wrong")
-                }
-              case Failure(failure) =>
-                println("Failed to stop: " + failure)
-            }
-
-          case Failure(failure) =>
-            println("Failed to stop: " + failure)
+    def receive = {
+      case Server.ServersConf(map) =>
+        servers = map
+      case Start(v) =>
+        toRespond = Some(sender)
+        self ! Learn(servers.values.head)
+      case Learn(v) =>
+        toRespond match {
+          case Some(e) => e ! v
+          case None => println("something is wrong")
         }
+    }
+  }
 
-      case Failure(failure) =>
-        println("Failed to stop: " + failure)
+  class PaxosActor(totalServers: Int) extends Actor {
+    import context.dispatcher
+
+    var count: Int = 0
+    val learners = MutableList[ActorRef]()
+    val acceptors = MutableList[ActorRef]()
+    val proposers = MutableList[ActorRef]()
+
+    for (s <- 1 to totalServers) {
+      learners += context.actorOf(Props(new Learner(self)), name = "learner" + s)
+      acceptors += context.actorOf(Props(new Acceptor), name = "acceptor" + s)
+      proposers += context.actorOf(Props(new Proposer), name = "proposer" + s)
     }
 
+    proposers.foreach(_ ! Servers(acceptors))
+    acceptors.foreach(_ ! Servers(learners))
+
+    var toRespond: MutableList[ActorRef] = MutableList[ActorRef]()
+
+    var done = false
+
+    def receive = {
+      case Start(v) =>
+        toRespond += sender
+        proposers(toRespond.size - 1) ! Start(v)
+        println(proposers.size)
+        if (toRespond.size == totalServers){
+          for (p <- proposers) {
+            p ! Go
+          }
+        }
+      case Learn(v) =>
+        count = count + 1
+        print("learned " + v)
+        if (count == learners.size) {
+          count = 0
+          for (p <- proposers) {
+            implicit val timeout = Timeout(20 seconds)
+            val future = p ? Stop
+            future onComplete {
+              case Success(result) => println(result)
+              case Failure(failure) => println(failure)
+            }
+          }
+          for (p <- acceptors) {
+            implicit val timeout = Timeout(20 seconds)
+            val future = p ? Stop
+            future onComplete {
+              case Success(result) => println(result)
+              case Failure(failure) => println(failure)
+            }
+          }
+          for (p <- learners) {
+            implicit val timeout = Timeout(20 seconds)
+            val future = p ? Stop
+            future onComplete {
+              case Success(result) => println(result)
+              case Failure(failure) => println(failure)
+            }
+          }
+          for (p <- toRespond) {
+            p ! v
+          }
+        }
+
+    }
   }
 }

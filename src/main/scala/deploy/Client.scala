@@ -64,7 +64,6 @@ object Client {
         findLeader(op, true)
       case TheLeaderIs(l)  => {
         leaderQuorum += l
-        println(leaderQuorum.size)
         if (leaderQuorum.size > serversURI.size / 2) {
           val leaderAddress = leaderQuorum.groupBy(l => l).map(t => (t._1, t._2.length)).toList.sortBy(_._2).max
           if (leaderAddress._2 > serversURI.size / 2) {

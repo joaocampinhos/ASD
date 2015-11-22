@@ -1,5 +1,6 @@
 package deploy
 
+import akka.actor.Cancellable
 import org.apache.commons.math3.distribution.ZipfDistribution
 import collection.immutable.HashMap
 import scala.collection.mutable.MutableList
@@ -40,8 +41,10 @@ object Client {
     var serverLeader: Option[ActorRef] = None
     var leaderQuorum = new MutableList[ActorRef]()
     var opsCounter = 0
+    var waiting  = true
     var alzheimer = true
     var debug = true
+    var timeoutScheduler: Option[Cancellable] = None
     scheduler.scheduleOnce(1.seconds, self, DoRequest)
 
     bota("Started")
@@ -57,15 +60,19 @@ object Client {
     }
 
     def waitingForLeaderInfo(op: Action): Receive = {
-      case "timeout" => findLeader(op,true)
-      case TheLeaderIs(l) => {
+      case "timeout" =>
+        bota("Timeout")
+        findLeader(op, true)
+      case o @ TheLeaderIs(l) if waiting == true => {
         leaderQuorum += l
         println(leaderQuorum.size)
         if (leaderQuorum.size == serversURI.size) {
           val leaderAddress = leaderQuorum.groupBy(l => l).map(t => (t._1, t._2.length)).toList.sortBy(_._2).max
           if (leaderAddress._2 > serversURI.size / 2) {
             serverLeader = Some(leaderAddress._1)
+            waiting  = false
             sendToLeader(op, true)
+            waiting  = true
           } else {
             bota("Cluster has no leader")
             context.stop(self)
@@ -102,7 +109,8 @@ object Client {
       leaderQuorum = new MutableList[ActorRef]()
       serversURI.values.foreach(e => e ! WhoIsLeader)
       context.become(waitingForLeaderInfo(op), discardOld = consecutiveError)
-      scheduler.scheduleOnce(1.seconds, self, "timeout")
+      cancelTimer()
+      timeoutScheduler = Some(scheduler.scheduleOnce(1.seconds, self, "timeout"))
     }
 
     def createOperation(): Action = {
@@ -124,6 +132,12 @@ object Client {
           context.unbecome()
           scheduler.scheduleOnce(0.seconds, self, DoRequest)
         }
+      }
+    }
+    def cancelTimer() = {
+      timeoutScheduler match {
+        case Some(t) => t.cancel()
+        case None => Unit
       }
     }
   }

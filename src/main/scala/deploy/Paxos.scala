@@ -68,7 +68,6 @@ object Paxos {
       case Start(v) =>
         toRespond += sender
         proposers(toRespond.size - 1) ! Start(v)
-        println(proposers.size)
         if (toRespond.size == totalServers){
           for (p <- proposers) {
             p ! Go

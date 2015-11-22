@@ -54,7 +54,7 @@ object Paxos {
     def bota(text: Any) = { if (debug) println(Console.RED + "[" + self.path.name + "] " + Console.GREEN + text + Console.WHITE) }
 
     for (s <- 1 to totalServers) {
-      learners += context.actorOf(Props(new Learner(self, totalServers)), name = "learner" + s)
+    learners += context.actorOf(Props(new Learner(self, totalServers)), name = "learner"+s)
       acceptors += context.actorOf(Props(new Acceptor), name = "acceptor" + s)
       proposers += context.actorOf(Props(new Proposer), name = "proposer" + s)
     }
@@ -62,9 +62,9 @@ object Paxos {
     proposers.foreach(_ ! Servers(acceptors))
     acceptors.foreach(_ ! Servers(learners))
 
-     proposers.foreach(_ ! Debug)
-     acceptors.foreach(_ ! Debug)
-     learners.foreach(_ ! Debug)
+    proposers.foreach(_ ! Debug)
+    acceptors.foreach(_ ! Debug)
+    learners.foreach(_ ! Debug)
 
     var toRespond: MutableList[ActorRef] = MutableList[ActorRef]()
 
@@ -73,11 +73,11 @@ object Paxos {
     def receive = {
       case Start(v) =>
         if (toRespond.size < totalServers) {
-        toRespond += sender
-        proposers(toRespond.size - 1) ! Operation(v)
-        if (toRespond.size == totalServers) {
-          proposers.foreach(p => p ! Go)
-        }
+          toRespond += sender
+          proposers(toRespond.size - 1) ! Operation(v)
+          if (toRespond.size == totalServers) {
+            proposers.foreach(p => p ! Go)
+          }
         }
       case Learn(v) =>
         count = count + 1

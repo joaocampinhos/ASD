@@ -23,13 +23,12 @@ class Proposer extends Actor {
   var noks: Seq[Option[Proposal]] = Nil
 
   var quorum = 0
-
+var biga: Int = 0
   def botap(text: String) = { if (debug) println(Console.CYAN + "[" + self.path.name + "] " + Console.YELLOW + text + Console.WHITE) }
   def botaa(text: String) = { if (debug) println(Console.CYAN + "[" + self.path.name + "] " + Console.BLUE + text + Console.WHITE) }
   def botad(text: String) = { if (debug) println(Console.CYAN + "[" + self.path.name + "] " + Console.GREEN + text + Console.WHITE) }
 
   def paxos(): Receive = {
-
 
     // Enviar Prepare
     case Go =>
@@ -69,12 +68,13 @@ class Proposer extends Actor {
       }
 
     //Caso do accept falhar
-    case AcceptAgain(prop) =>
+    case AcceptAgain(n, prop) =>
+      if (n > biga) biga = n
       botaa("RECV AcceptAgain(" + prop + ")")
       noks = prop +: noks
 
       //Quorum
-     if (noks.size > acceptors.size / 2) {
+      if (noks.size > acceptors.size / 2) {
         //escolher o V da lista de oks com o N maior ou escolher o nosso v
         val value = noks.filter(_ != None)
           .sortBy {
@@ -85,33 +85,34 @@ class Proposer extends Actor {
           .getOrElse(Some(Proposal(nn, v)))
           .get
         // botaa("SEND Accept(" + value + ")")
-        // acceptors.foreach(_ ! Accept(Proposal(value.n + 1, value.n)))
-        acceptors.foreach(_ ! Accept(value))
+        acceptors.foreach(_ ! Accept(Proposal(biga, value.v)))
         noks = Nil
+        biga = 0
       }
 
     //Caso nosso valor seja aceite
     case AcceptOk(n) => {
+      botaa("RECV AcceptOk(" + n + ")")
       //context.unbecome()
     }
 
     case Stop => {
+      botaa("Reset")
       nn = 1
       v = Nil
       oks = Nil
       noks = Nil
       quorum = 0
-      sender ! Stop
+      sender ! self.path
       context.unbecome()
     }
-
   }
 
   def receive = {
     //turn on debug messages
     case Debug => debug = true
 
-    case Servers(servers) => 
+    case Servers(servers) =>
       acceptors = servers
 
     case Operation(op) =>

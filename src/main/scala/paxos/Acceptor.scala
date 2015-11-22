@@ -33,11 +33,11 @@ class Acceptor extends Actor {
       botap("RECV Prepare("+n+")")
         if(np.map(_ < n).getOrElse(true)) {
           np = Some(n)
-          botap("SEND PrepareOk("+last+")")
+          // botap("SEND PrepareOk("+last+")")
           sender ! PrepareOk(last)
         }
         else {
-          botap("SEND PrepareAgain("+last+")")
+          // botap("SEND PrepareAgain("+last+")")
           sender ! PrepareAgain(np)
         }
 
@@ -45,13 +45,13 @@ class Acceptor extends Actor {
       botaa("RECV Accept("+prop+")")
         if(np.map(_ <= prop.n).getOrElse(true)) {
           last = Some(prop)
-          botaa("SEND AcceptOk("+prop.n+")")
+          // botaa("SEND AcceptOk("+prop.n+")")
           sender ! AcceptOk(prop.n)
-          botad("SEND Learn("+prop.v+")")
+          // botad("SEND Learn("+prop.v+")")
           learners.foreach(_ ! Learn(prop.v))
         }
         else {
-          botaa("SEND AcceptAgain("+last+")")
+          // botaa("SEND AcceptAgain("+last+")")
           sender ! AcceptAgain(last)
         }
 

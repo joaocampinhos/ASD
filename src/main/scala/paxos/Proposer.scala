@@ -14,6 +14,7 @@ class Proposer extends Actor {
   var nn: Int = 1
 
   //Valor inicial a propor
+
   var v: Any = Nil
 
   var acceptors: Seq[ActorRef] = Nil
@@ -29,12 +30,7 @@ class Proposer extends Actor {
 
   def paxos(): Receive = {
 
-    //turn on debug messages
-    case Debug => debug = true
 
-    case Start(value) =>
-      v = value
-      println("received my value")
     // Enviar Prepare
     case Go =>
       botap("SEND Prepare(" + nn + ")")
@@ -56,7 +52,7 @@ class Proposer extends Actor {
           .headOption
           .getOrElse(Some(Proposal(nn, v)))
           .get
-        botaa("SEND Accept(" + value + ")")
+        // botaa("SEND Accept(" + value + ")")
         acceptors.foreach(_ ! Accept(value))
         oks = Nil
       }
@@ -67,7 +63,7 @@ class Proposer extends Actor {
       quorum = quorum + 1
       if (quorum > acceptors.size / 2) {
         nn = n.getOrElse(nn) + 1
-        botap("SEND Prepare(" + nn + ")")
+        // botap("SEND Prepare(" + nn + ")")
         acceptors.foreach(_ ! Prepare(nn))
         quorum = 0
       }
@@ -78,7 +74,7 @@ class Proposer extends Actor {
       noks = prop +: noks
 
       //Quorum
-      if (noks.size > acceptors.size / 2) {
+     if (noks.size > acceptors.size / 2) {
         //escolher o V da lista de oks com o N maior ou escolher o nosso v
         val value = noks.filter(_ != None)
           .sortBy {
@@ -88,7 +84,8 @@ class Proposer extends Actor {
           .headOption
           .getOrElse(Some(Proposal(nn, v)))
           .get
-        botaa("SEND Accept(" + value + ")")
+        // botaa("SEND Accept(" + value + ")")
+        // acceptors.foreach(_ ! Accept(Proposal(value.n + 1, value.n)))
         acceptors.foreach(_ ! Accept(value))
         noks = Nil
       }
@@ -111,12 +108,14 @@ class Proposer extends Actor {
   }
 
   def receive = {
+    //turn on debug messages
+    case Debug => debug = true
 
-    case Servers(servers) => acceptors = servers
+    case Servers(servers) => 
+      acceptors = servers
 
     case Operation(op) =>
       v = op
       context.become(paxos(), discardOld = false)
-
   }
 }

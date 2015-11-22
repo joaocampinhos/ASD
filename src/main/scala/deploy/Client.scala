@@ -57,13 +57,14 @@ object Client {
     }
 
     def waitingForLeaderInfo(op: Action): Receive = {
+      case "timeout" => findLeader(op,true)
       case TheLeaderIs(l) => {
         leaderQuorum += l
-        if (leaderQuorum.size > serversURI.size / 2) {
+        println(leaderQuorum.size)
+        if (leaderQuorum.size == serversURI.size) {
           val leaderAddress = leaderQuorum.groupBy(l => l).map(t => (t._1, t._2.length)).toList.sortBy(_._2).max
           if (leaderAddress._2 > serversURI.size / 2) {
             serverLeader = Some(leaderAddress._1)
-            leaderQuorum = new MutableList[ActorRef]()
             sendToLeader(op, true)
           } else {
             bota("Cluster has no leader")
@@ -77,6 +78,7 @@ object Client {
     def sendToLeader(op: Action, consecutiveError: Boolean) = {
       serverLeader match {
         case Some(l) => {
+          bota("leader is " + l)
           implicit val timeout = Timeout(5.seconds)
           l ? op onComplete {
             case Success(result) =>
@@ -97,8 +99,10 @@ object Client {
 
     def findLeader(op: Action, consecutiveError: Boolean) = {
       bota("Finding leader")
-      context.become(waitingForLeaderInfo(op), discardOld = consecutiveError)
+      leaderQuorum = new MutableList[ActorRef]()
       serversURI.values.foreach(e => e ! WhoIsLeader)
+      context.become(waitingForLeaderInfo(op), discardOld = consecutiveError)
+      scheduler.scheduleOnce(1.seconds, self, "timeout")
     }
 
     def createOperation(): Action = {

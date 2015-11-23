@@ -44,7 +44,7 @@ object Client {
     var alzheimer = true
     var debug = true
     var timeoutScheduler: Option[Cancellable] = None
-    scheduler.scheduleOnce(1.seconds, self, DoRequest)
+    scheduler.scheduleOnce(0.seconds, self, DoRequest)
 
     bota("Started")
 
@@ -106,8 +106,7 @@ object Client {
       leaderQuorum = new MutableList[ActorRef]()
       serversURI.values.foreach(e => e ! WhoIsLeader)
       context.become(waitingForLeaderInfo(op), discardOld = consecutiveError)
-      cancelTimer()
-      timeoutScheduler = Some(scheduler.scheduleOnce(1.seconds, self, "timeout"))
+      cancelOpTimeout()
     }
 
     def createOperation(): Action = {
@@ -124,18 +123,21 @@ object Client {
       opsCounter match {
         case clientConf.maxOpsNumber =>
           bota("Executed all ops")
-          context.stop(self) // Client has executed all operations
+        cancelOpTimeout()
+        context.stop(self) // Client has executed all operations
         case _ => {
           context.unbecome()
           scheduler.scheduleOnce(0.seconds, self, DoRequest)
         }
       }
     }
-    def cancelTimer() = {
+
+    def cancelOpTimeout() = {
       timeoutScheduler match {
         case Some(t) => t.cancel()
         case None => Unit
       }
+      timeoutScheduler = Some(scheduler.scheduleOnce(1.seconds, self, "timeout"))
     }
   }
 }

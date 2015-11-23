@@ -19,6 +19,9 @@ import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.concurrent.duration._
 
 object Server {
+  val MAX_HEARTBEAT_TIME = 180.seconds
+  val MAX_ELECTION_TIME = 180.seconds
+
   case class ServersConf(servers: HashMap[String, ActorRef])
 
   case class ServerActor(paxos: ActorRef) extends Actor {
@@ -31,8 +34,6 @@ object Server {
     var alzheimer = true
     var debug = true
 
-    var view = new View(0, MutableList[ActorRef](), MutableList[Action]())
-
     override def preStart(): Unit = {
       context.become(waitForData(), discardOld = false)
     }
@@ -43,11 +44,11 @@ object Server {
 
     def waitForData(): Receive = {
       case ServersConf(map) =>
-        bota("Received addresses")
         serversAddresses = map
         paxos ! ServersConf(map)
         context.unbecome()
         sender ! Success("Ok " + self.path.name)
+        bota("I'm ready")
       case _ => bota("[Stage: Waiting for servers' address] Received unknown message.")
     }
 
@@ -55,50 +56,50 @@ object Server {
       case Alive =>
         bota("I'm alive")
         sender ! true
-      case WhoIsLeader => heartbeatThenResp(sender)
+      case WhoIsLeader => heartbeatThenAnswer(sender)
       case Get(key) =>
         val result = store.get(key)
         bota("Get:(" + key + "," + result + ")")
         sender ! Success(result)
       case Put(key, value) =>
-        store+=(key -> value)
+        store += (key -> value)
         bota(key + " " + value)
         sender ! Success("Put: " + key + ", " + value)
       case _ => bota("[Stage: Responding to Get/Put] Received unknown message.")
     }
 
-    def heartbeatThenResp(respondTo: ActorRef) = {
+    def heartbeatThenAnswer(respondTo: ActorRef) = {
       actualLeader match {
         case Some(l) =>
           if (l == self)
             respondTo ! TheLeaderIs(l)
           else {
-            implicit val timeout = Timeout(180.seconds)
+            implicit val timeout = Timeout(MAX_HEARTBEAT_TIME)
             l ? Alive onComplete {
               case Success(result) =>
                 bota("Leader is alive: " + result)
                 respondTo ! TheLeaderIs(l)
               case Failure(failure) =>
                 bota("Failure: " + failure)
-                electLeaderThenResp(respondTo)
+                electLeaderThenAnswer(respondTo)
             }
           }
         case None =>
-          electLeaderThenResp(respondTo)
+          electLeaderThenAnswer(respondTo)
       }
     }
 
-    def electLeaderThenResp(sender: ActorRef) = {
-      implicit val timeout = Timeout(180.seconds)
+    def electLeaderThenAnswer(sender: ActorRef) = {
+      implicit val timeout = Timeout(MAX_ELECTION_TIME)
       paxos ? Start(self) onComplete {
         case Success(result: ActorRef) =>
-          bota("Future leader is " + result.path.name)
+          bota("Election: " + result.path.name)
           actualLeader = Some(result)
           if (alzheimer) //TODO CAREFULL
             actualLeader = None
           sender ! TheLeaderIs(result)
         case Failure(failure) =>
-          bota("There is no leader for the Future")
+          bota("Election failed: " + failure)
           actualLeader = None
       }
     }

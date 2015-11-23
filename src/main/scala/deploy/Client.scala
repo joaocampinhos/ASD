@@ -55,7 +55,7 @@ object Client {
         var op = createOperation()
         bota("Prepared " + op)
         sendToLeader(op, false)
-      case _ => bota("[Stage: Operation's preparation] Received unknown message.")
+      case a: Any => bota("[Stage:Getting Leader Address] Received unknown message. " + a)
     }
 
     def waitingForLeaderInfo(op: Action): Receive = {
@@ -70,7 +70,7 @@ object Client {
             serverLeader = Some(leaderAddress._1)
             sendToLeader(op, true)
           } else {
-            bota("Timeout")
+            bota("Retry")
             findLeader(op, true)
           }
         }
@@ -79,6 +79,7 @@ object Client {
     }
 
     def sendToLeader(op: Action, consecutiveError: Boolean) = {
+      context.unbecome()
       serverLeader match {
         case Some(l) => {
           bota("leader is " + l)

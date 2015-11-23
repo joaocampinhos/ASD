@@ -55,20 +55,21 @@ object Paxos {
     val proposers = MutableList[ActorRef]()
     var debug = false
 
+    def log(text: Any) = { println(Console.RED + "[" + self.path.name + "] " + Console.GREEN + text + Console.WHITE) }
     def debugLog(text: Any) = { if (debug) println(Console.RED + "[" + self.path.name + "] " + Console.GREEN + text + Console.WHITE) }
 
     for (s <- 1 to totalServers) {
       acceptors += context.actorOf(Props(new Acceptor), name = "acceptor" + s)
       proposers += context.actorOf(Props(new Proposer), name = "proposer" + s)
     }
-      learners += context.actorOf(Props(new Learner(self, totalServers)), name = "learner")
+    learners += context.actorOf(Props(new Learner(self, totalServers)), name = "learner")
 
     proposers.foreach(_ ! Servers(acceptors))
     acceptors.foreach(_ ! Servers(learners))
 
-    proposers.foreach(_ ! Debug)
-    acceptors.foreach(_ ! Debug)
-    learners.foreach(_ ! Debug)
+    // proposers.foreach(_ ! Debug)
+    // acceptors.foreach(_ ! Debug)
+    // learners.foreach(_ ! Debug)
 
     var toRespond: MutableList[ActorRef] = MutableList[ActorRef]()
 
@@ -86,7 +87,7 @@ object Paxos {
       case Learn(v) =>
         count = count + 1
         if (count == learners.size) {
-          debugLog("Learned: " + v)
+          log("Learned: " + v)
           count = 0
           for (p <- proposers) {
             implicit val timeout = Timeout(50 seconds)

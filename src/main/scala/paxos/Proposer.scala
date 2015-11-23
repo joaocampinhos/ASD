@@ -23,7 +23,7 @@ class Proposer extends Actor {
   var noks: Seq[Option[Proposal]] = Nil
 
   var quorum = 0
-var biga: Int = 0
+  var biga: Int = 0
   def botap(text: String) = { if (debug) println(Console.CYAN + "[" + self.path.name + "] " + Console.YELLOW + text + Console.WHITE) }
   def botaa(text: String) = { if (debug) println(Console.CYAN + "[" + self.path.name + "] " + Console.BLUE + text + Console.WHITE) }
   def botad(text: String) = { if (debug) println(Console.CYAN + "[" + self.path.name + "] " + Console.GREEN + text + Console.WHITE) }

@@ -62,7 +62,7 @@ object Client {
     }
 
     def waitingForLeaderInfo(op: Action): Receive = {
-      case "timeout" =>
+      case Timeout =>
         debugLog("Timeout")
         findLeader(op, true)
       case TheLeaderIs(l) => {
@@ -141,7 +141,7 @@ object Client {
         case Some(t) => t.cancel()
         case None => Unit
       }
-      timeoutScheduler = Some(scheduler.scheduleOnce(ANSWER_TIME, self, "timeout"))
+      timeoutScheduler = Some(scheduler.scheduleOnce(ANSWER_TIME, self, Timeout))
     }
   }
 }

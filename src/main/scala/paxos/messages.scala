@@ -48,3 +48,5 @@ case class TheLeaderIs(l: ActorRef)
 case object DoRequest
 
 case object Alive
+
+case object Timeout

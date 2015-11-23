@@ -2,28 +2,28 @@ package deploy
 
 import akka.actor.Cancellable
 import org.apache.commons.math3.distribution.ZipfDistribution
-import collection.immutable.HashMap
-import scala.collection.mutable.MutableList
+import collection.mutable.HashMap
+import collection.mutable.MutableList
 import akka.actor.Actor
 import akka.event.Logging
 import akka.actor.ActorRef
-import scala.concurrent.duration._
+import concurrent.duration._
 import com.typesafe.config.Config
-import scala.concurrent.forkjoin.ThreadLocalRandom
+import concurrent.forkjoin.ThreadLocalRandom
 import org.apache.commons.math3.distribution.ZipfDistribution
-import scala.concurrent.Await
+import concurrent.Await
 import akka.pattern.ask
 import akka.util.Timeout
 import scala.concurrent.duration._
-import scala.util.Failure
-import scala.util.Success
+import util.Failure
+import util.Success
 import paxos._
+import deploy.Stat.Messages.{ ClientStart, ClientEnd, StatOp }
 
 object Client {
   val DO_OP_TIME = 0.seconds
-  val ANSWER_TIME = 1.seconds
-  val LEADER_ANSWER_TIME = 180.seconds
-
+  val ANSWER_TIME = 2.seconds
+  val LEADER_ANSWER_TIME = 1.seconds
   case class ClientConf(readsRate: Int, maxOpsNumber: Int, zipfNumber: Int)
 
   def parseClientConf(config: Config): ClientConf = {
@@ -34,7 +34,7 @@ object Client {
     )
   }
 
-  class ClientActor(serversURI: HashMap[String, ActorRef], clientConf: ClientConf) extends Actor {
+  case class ClientActor(serversURI: HashMap[String, ActorRef], clientConf: ClientConf, stat: ActorRef) extends Actor {
     import context.dispatcher
 
     val log = Logging(context.system, this)
@@ -45,18 +45,33 @@ object Client {
     var leaderQuorum = new MutableList[ActorRef]()
     var opsCounter = 0
     var alzheimer = true
-    var debug = false
+    var debug = true
     var timeoutScheduler: Option[Cancellable] = None
-    scheduler.scheduleOnce(DO_OP_TIME , self, DoRequest)
 
     log("I'm ready")
+    stat ! ClientStart(self.path)
 
-    def log(text: Any) = { println(Console.MAGENTA + "[" + self.path.name + "] " + Console.YELLOW + text + Console.WHITE) }
-    def debugLog(text: Any) = { if (debug) println(Console.MAGENTA + "[" + self.path.name + "] " + Console.YELLOW + text + Console.WHITE) }
+    scheduler.scheduleOnce(DO_OP_TIME, self, DoRequest)
+
+    def log(text: Any) = {
+      println(Console.MAGENTA + "[" + self.path.name + "] " + Console.YELLOW + text + Console.WHITE)
+    }
+
+    def debugLog(text: Any) = {
+      if (debug) println(Console.MAGENTA + "[" + self.path.name + "] " + Console.YELLOW + text + Console.WHITE)
+    }
+
+    override def postStop() {
+      stat ! ClientEnd(self.path)
+    }
 
     def receive = {
       case DoRequest =>
         var op = createOperation()
+        op match {
+          case Get(_) => stat ! StatOp(self.path, "get")
+          case Put(_, _) => stat ! StatOp(self.path, "put")
+        }
         sendToLeader(op, false)
       case a: Any => debugLog("[Stage:Getting Leader Address] Received unknown message. " + a)
     }
@@ -67,6 +82,7 @@ object Client {
         findLeader(op, true)
       case TheLeaderIs(l) => {
         leaderQuorum += l
+        println(serversURI.size)
         if (leaderQuorum.size > serversURI.size / 2) {
           val leaderAddress = leaderQuorum.groupBy(l => l).map(t => (t._1, t._2.length)).toList.sortBy(_._2).max
           if (leaderAddress._2 > serversURI.size / 2) {
@@ -89,10 +105,16 @@ object Client {
           implicit val timeout = Timeout(LEADER_ANSWER_TIME)
           l ? op onComplete {
             case Success(result) =>
-              log(result+" => OP:"+op )
+              log(result + " => OP:" + op + " on " + l.path.name)
+              op match {
+                case Get(_) => stat ! StatOp(self.path, "getsuc")
+                case Put(_, _) => stat ! StatOp(self.path, "putsuc")
+              }
               resetRole()
             case Failure(failure) =>
-              log("OP:"+op+" failed: " + failure)
+              log("OP:" + op + " failed: " + failure + " on " + l.path.name)
+              serversURI-= l.path.name
+              println("removed " +serversURI.size)
               serverLeader = None
               findLeader(op, consecutiveError)
           }
@@ -119,7 +141,7 @@ object Client {
         Put(zipf.sample().toString, zipf.sample().toString)
       }
       opsCounter += 1
-      debugLog("Nº:" + opsCounter+" OP: " + op)
+      debugLog("Nº:" + opsCounter + " OP: " + op)
       op
     }
 
@@ -127,8 +149,8 @@ object Client {
       opsCounter match {
         case clientConf.maxOpsNumber =>
           log("Executed all ops")
-        cancelOpTimeout()
-        context.stop(self) // Client has executed all operations
+          cancelOpTimeout()
+          context.stop(self) // Client has executed all operations
         case _ => {
           context.unbecome()
           scheduler.scheduleOnce(DO_OP_TIME, self, DoRequest)

@@ -4,7 +4,7 @@ import akka.actor._
 import akka.remote.RemoteScope
 import akka.event.Logging
 import scala.collection.mutable.MutableList
-import scala.collection.immutable._
+import scala.collection.mutable.HashMap
 import akka.actor.Actor
 import akka.event.Logging
 import akka.actor.ActorRef
@@ -87,7 +87,7 @@ object Paxos {
       case Learn(v) =>
         count = count + 1
         if (count == learners.size) {
-          log("Learned: " + v)
+          debugLog("Learned: " + v)
           count = 0
           for (p <- proposers) {
             implicit val timeout = Timeout(50 seconds)

@@ -4,7 +4,7 @@ import akka.actor._
 import akka.remote.RemoteScope
 import akka.event.Logging
 import scala.collection.mutable.MutableList
-import scala.collection.immutable._
+import scala.collection.mutable.HashMap
 import akka.actor.Actor
 import akka.event.Logging
 import akka.actor.ActorRef
@@ -17,14 +17,15 @@ import akka.pattern.ask
 import akka.util.Timeout
 import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.concurrent.duration._
+import deploy.Stat.Messages.{ ServerStart, ServerEnd }
 
 object Server {
   val MAX_HEARTBEAT_TIME = 180.seconds
   val MAX_ELECTION_TIME = 180.seconds
 
-  case class ServersConf(servers: HashMap[String, ActorRef])
+  case class ServersConf(servers: collection.mutable.HashMap[String, ActorRef])
 
-  case class ServerActor(paxos: ActorRef) extends Actor {
+  case class ServerActor(paxos: ActorRef, stat: ActorRef) extends Actor {
     import context.dispatcher
 
     val log = Logging(context.system, this)
@@ -34,15 +35,23 @@ object Server {
     var alzheimer = true
     var debug = false
 
+    stat ! ServerStart(self.path)
+
     override def preStart(): Unit = {
       context.become(waitForData(), discardOld = false)
+    }
+
+    override def postStop() {
+      stat ! ServerEnd(self.path)
+      log("Shuting down")
     }
 
     def log(text: Any) = { println(Console.RED + "[" + self.path.name + "] " + Console.GREEN + text + Console.WHITE) }
     def debugLog(text: Any) = { if (debug) println(Console.RED + "[" + self.path.name + "] " + Console.GREEN + text + Console.WHITE) }
 
-
     def waitForData(): Receive = {
+      case Shutdown =>
+        context.stop(self)
       case ServersConf(map) =>
         serversAddresses = map
         paxos ! ServersConf(map)
@@ -53,6 +62,8 @@ object Server {
     }
 
     def receive(): Receive = {
+      case Shutdown =>
+        context.stop(self)
       case Alive =>
         debugLog("I'm alive")
         sender ! true
@@ -81,6 +92,7 @@ object Server {
                 respondTo ! TheLeaderIs(l)
               case Failure(failure) =>
                 debugLog("Failure: " + failure)
+                serversAddresses -= l.path.name
                 electLeaderThenAnswer(respondTo)
             }
           }

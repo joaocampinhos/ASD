@@ -4,12 +4,13 @@ import scala.collection.mutable.MutableList
 
 case object Debug
 
-case class Servers(s:Seq[ActorRef])
+case class Servers(s: Seq[ActorRef])
 // case class Servers(s: MutableList[ActorRef])
 
 case class Operation(v: Any) extends Action
 
 case object Start
+
 case object Go
 
 case class Start(v: Any)
@@ -30,8 +31,7 @@ case class Accept(m: Proposal)
 
 case class AcceptOk(n: Int)
 
-case class AcceptAgain(t: Int, m:Option[Proposal])
-// case class AcceptAgain(m: Option[Proposal])
+case class AcceptAgain(t: Int, m: Option[Proposal])
 
 case class Learn(v: Any)
 
@@ -50,3 +50,5 @@ case object DoRequest
 case object Alive
 
 case object Timeout
+
+case object Shutdown

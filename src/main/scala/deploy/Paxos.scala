@@ -29,6 +29,9 @@ object Paxos {
     var toRespond: Option[ActorRef] = None
     var servers: HashMap[String, ActorRef] = HashMap[String, ActorRef]()
 
+    var debug = false
+    def debugLog(text: Any) = { if (debug) println(Console.RED + "[" + self.path.name + "] " + Console.GREEN + text + Console.WHITE) }
+
     def receive = {
       case Server.ServersConf(map) =>
         servers = map
@@ -38,7 +41,7 @@ object Paxos {
       case Learn(v) =>
         toRespond match {
           case Some(e) => e ! v
-          case None => println("something is wrong")
+          case None => debugLog("Something is wrong")
         }
     }
   }
@@ -51,10 +54,11 @@ object Paxos {
     val acceptors = MutableList[ActorRef]()
     val proposers = MutableList[ActorRef]()
     var debug = false
-    def bota(text: Any) = { if (debug) println(Console.RED + "[" + self.path.name + "] " + Console.GREEN + text + Console.WHITE) }
+
+    def debugLog(text: Any) = { if (debug) println(Console.RED + "[" + self.path.name + "] " + Console.GREEN + text + Console.WHITE) }
 
     for (s <- 1 to totalServers) {
-    learners += context.actorOf(Props(new Learner(self, totalServers)), name = "learner"+s)
+      learners += context.actorOf(Props(new Learner(self, totalServers)), name = "learner" + s)
       acceptors += context.actorOf(Props(new Acceptor), name = "acceptor" + s)
       proposers += context.actorOf(Props(new Proposer), name = "proposer" + s)
     }
@@ -82,30 +86,30 @@ object Paxos {
       case Learn(v) =>
         count = count + 1
         if (count == learners.size) {
-          bota("learned " + v)
+          debugLog("Learned: " + v)
           count = 0
           for (p <- proposers) {
             implicit val timeout = Timeout(50 seconds)
             val future = p ? Stop
             future onComplete {
-              case Success(result) => bota(result)
-              case Failure(failure) => bota(failure)
+              case Success(result) => debugLog(result)
+              case Failure(failure) => debugLog(failure)
             }
           }
           for (p <- acceptors) {
             implicit val timeout = Timeout(50 seconds)
             val future = p ? Stop
             future onComplete {
-              case Success(result) => bota(result)
-              case Failure(failure) => bota(failure)
+              case Success(result) => debugLog(result)
+              case Failure(failure) => debugLog(failure)
             }
           }
           for (p <- learners) {
             implicit val timeout = Timeout(50 seconds)
             val future = p ? Stop
             future onComplete {
-              case Success(result) => bota(result)
-              case Failure(failure) => bota(failure)
+              case Success(result) => debugLog(result)
+              case Failure(failure) => debugLog(failure)
             }
           }
           for (p <- toRespond) {

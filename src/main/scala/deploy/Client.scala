@@ -42,25 +42,25 @@ object Client {
     var leaderQuorum = new MutableList[ActorRef]()
     var opsCounter = 0
     var alzheimer = true
-    var debug = true
+    var debug = false
     var timeoutScheduler: Option[Cancellable] = None
     scheduler.scheduleOnce(0.seconds, self, DoRequest)
 
-    bota("Started")
+    log("I'm ready")
 
-    def bota(text: String) = { if (debug) println(Console.MAGENTA + "[" + self.path.name + "] " + Console.YELLOW + text + Console.WHITE) }
+    def log(text: Any) = { println(Console.MAGENTA + "[" + self.path.name + "] " + Console.YELLOW + text + Console.WHITE) }
+    def debugLog(text: Any) = { if (debug) println(Console.MAGENTA + "[" + self.path.name + "] " + Console.YELLOW + text + Console.WHITE) }
 
     def receive = {
       case DoRequest =>
         var op = createOperation()
-        bota("Prepared " + op)
         sendToLeader(op, false)
-      case a: Any => bota("[Stage:Getting Leader Address] Received unknown message. " + a)
+      case a: Any => debugLog("[Stage:Getting Leader Address] Received unknown message. " + a)
     }
 
     def waitingForLeaderInfo(op: Action): Receive = {
       case "timeout" =>
-        bota("Timeout")
+        debugLog("Timeout")
         findLeader(op, true)
       case TheLeaderIs(l) => {
         leaderQuorum += l
@@ -70,26 +70,26 @@ object Client {
             serverLeader = Some(leaderAddress._1)
             sendToLeader(op, true)
           } else {
-            bota("Retry")
+            debugLog("Retry")
             findLeader(op, true)
           }
         }
       }
-      case a: Any => bota("[Stage:Getting Leader Address] Received unknown message. " + a)
+      case a: Any => debugLog("[Stage:Getting Leader Address] Received unknown message. " + a)
     }
 
     def sendToLeader(op: Action, consecutiveError: Boolean) = {
       context.unbecome()
       serverLeader match {
         case Some(l) => {
-          bota("leader is " + l)
+          debugLog("leader is " + l)
           implicit val timeout = Timeout(5.seconds)
           l ? op onComplete {
             case Success(result) =>
-              bota("Op result: " + result)
+              log(result+" => OP:"+op )
               resetRole()
             case Failure(failure) =>
-              bota("Op failed: " + failure)
+              log("OP:"+op+" failed: " + failure)
               serverLeader = None
               findLeader(op, consecutiveError)
           }
@@ -102,7 +102,7 @@ object Client {
     }
 
     def findLeader(op: Action, consecutiveError: Boolean) = {
-      bota("Finding leader")
+      debugLog("Finding leader")
       leaderQuorum = new MutableList[ActorRef]()
       serversURI.values.foreach(e => e ! WhoIsLeader)
       context.become(waitingForLeaderInfo(op), discardOld = consecutiveError)
@@ -110,19 +110,20 @@ object Client {
     }
 
     def createOperation(): Action = {
-      opsCounter += 1
-      bota("N_OP:" + opsCounter)
-      if (rnd.nextInt(0, 101) <= clientConf.readsRate)
+      var op = if (rnd.nextInt(0, 101) <= clientConf.readsRate)
         Get(zipf.sample().toString)
       else {
         Put(zipf.sample().toString, zipf.sample().toString)
       }
+      opsCounter += 1
+      debugLog("Nº:" + opsCounter+" OP: " + op)
+      op
     }
 
     def resetRole() = {
       opsCounter match {
         case clientConf.maxOpsNumber =>
-          bota("Executed all ops")
+          log("Executed all ops")
         cancelOpTimeout()
         context.stop(self) // Client has executed all operations
         case _ => {

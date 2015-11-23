@@ -32,15 +32,15 @@ object Server {
     var serversAddresses = HashMap[String, ActorRef]()
     var actualLeader: Option[ActorRef] = None
     var alzheimer = true
-    var debug = true
+    var debug = false
 
     override def preStart(): Unit = {
       context.become(waitForData(), discardOld = false)
     }
 
-    bota("Started")
+    def log(text: Any) = { println(Console.RED + "[" + self.path.name + "] " + Console.GREEN + text + Console.WHITE) }
+    def debugLog(text: Any) = { if (debug) println(Console.RED + "[" + self.path.name + "] " + Console.GREEN + text + Console.WHITE) }
 
-    def bota(text: String) = { if (debug) println(Console.RED + "[" + self.path.name + "] " + Console.GREEN + text + Console.WHITE) }
 
     def waitForData(): Receive = {
       case ServersConf(map) =>
@@ -48,24 +48,24 @@ object Server {
         paxos ! ServersConf(map)
         context.unbecome()
         sender ! Success("Ok " + self.path.name)
-        bota("I'm ready")
-      case _ => bota("[Stage: Waiting for servers' address] Received unknown message.")
+        log("I'm ready")
+      case _ => debugLog("[Stage: Waiting for servers' address] Received unknown message.")
     }
 
     def receive(): Receive = {
       case Alive =>
-        bota("I'm alive")
+        debugLog("I'm alive")
         sender ! true
       case WhoIsLeader => heartbeatThenAnswer(sender)
       case Get(key) =>
         val result = store.get(key)
-        bota("Get:(" + key + "," + result + ")")
-        sender ! Success(result)
+        log("Get:(" + key + "," + result + ")")
+        sender ! "OK"
       case Put(key, value) =>
         store += (key -> value)
-        bota(key + " " + value)
-        sender ! Success("Put: " + key + ", " + value)
-      case _ => bota("[Stage: Responding to Get/Put] Received unknown message.")
+        log(key + " " + value)
+        sender ! "OK"
+      case _ => debugLog("[Stage: Responding to Get/Put] Received unknown message.")
     }
 
     def heartbeatThenAnswer(respondTo: ActorRef) = {
@@ -77,10 +77,10 @@ object Server {
             implicit val timeout = Timeout(MAX_HEARTBEAT_TIME)
             l ? Alive onComplete {
               case Success(result) =>
-                bota("Leader is alive: " + result)
+                debugLog("Leader is alive: " + result)
                 respondTo ! TheLeaderIs(l)
               case Failure(failure) =>
-                bota("Failure: " + failure)
+                debugLog("Failure: " + failure)
                 electLeaderThenAnswer(respondTo)
             }
           }
@@ -93,13 +93,13 @@ object Server {
       implicit val timeout = Timeout(MAX_ELECTION_TIME)
       paxos ? Start(self) onComplete {
         case Success(result: ActorRef) =>
-          bota("Election: " + result.path.name)
+          debugLog("Election: " + result.path.name)
           actualLeader = Some(result)
           if (alzheimer) //TODO CAREFULL
             actualLeader = None
           sender ! TheLeaderIs(result)
         case Failure(failure) =>
-          bota("Election failed: " + failure)
+          debugLog("Election failed: " + failure)
           actualLeader = None
       }
     }

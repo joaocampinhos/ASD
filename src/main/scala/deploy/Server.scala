@@ -20,8 +20,8 @@ import scala.concurrent.duration._
 import deploy.Stat.Messages.{ ServerStart, ServerEnd }
 
 object Server {
-  val MAX_HEARTBEAT_TIME = 180.seconds
-  val MAX_ELECTION_TIME = 180.seconds
+  val MAX_HEARTBEAT_TIME = 2.seconds
+  val MAX_ELECTION_TIME = 3.seconds
 
   case class ServersConf(servers: collection.mutable.HashMap[String, ActorRef])
 
@@ -32,7 +32,7 @@ object Server {
     var store = scala.collection.mutable.HashMap[String, String]()
     var serversAddresses = HashMap[String, ActorRef]()
     var actualLeader: Option[ActorRef] = None
-    var alzheimer = true
+    var alzheimer = false
     var debug = false
 
     stat ! ServerStart(self.path)

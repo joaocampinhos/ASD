@@ -44,8 +44,8 @@ object Client {
     var serverLeader: Option[ActorRef] = None
     var leaderQuorum = new MutableList[ActorRef]()
     var opsCounter = 0
-    var alzheimer = true
-    var debug = true
+    var alzheimer = false
+    var debug = false
     var timeoutScheduler: Option[Cancellable] = None
 
     log("I'm ready")
@@ -82,7 +82,6 @@ object Client {
         findLeader(op, true)
       case TheLeaderIs(l) => {
         leaderQuorum += l
-        println(serversURI.size)
         if (leaderQuorum.size > serversURI.size / 2) {
           val leaderAddress = leaderQuorum.groupBy(l => l).map(t => (t._1, t._2.length)).toList.sortBy(_._2).max
           if (leaderAddress._2 > serversURI.size / 2) {
@@ -114,7 +113,7 @@ object Client {
             case Failure(failure) =>
               log("OP:" + op + " failed: " + failure + " on " + l.path.name)
               serversURI-= l.path.name
-              println("removed " +serversURI.size)
+              debugLog("Total servers " +serversURI.size)
               serverLeader = None
               findLeader(op, consecutiveError)
           }

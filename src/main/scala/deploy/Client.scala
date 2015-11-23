@@ -20,6 +20,9 @@ import scala.util.Success
 import paxos._
 
 object Client {
+  val DO_OP_TIME = 0.seconds
+  val ANSWER_TIME = 1.seconds
+  val LEADER_ANSWER_TIME = 180.seconds
 
   case class ClientConf(readsRate: Int, maxOpsNumber: Int, zipfNumber: Int)
 
@@ -44,7 +47,7 @@ object Client {
     var alzheimer = true
     var debug = false
     var timeoutScheduler: Option[Cancellable] = None
-    scheduler.scheduleOnce(0.seconds, self, DoRequest)
+    scheduler.scheduleOnce(DO_OP_TIME , self, DoRequest)
 
     log("I'm ready")
 
@@ -83,7 +86,7 @@ object Client {
       serverLeader match {
         case Some(l) => {
           debugLog("leader is " + l)
-          implicit val timeout = Timeout(5.seconds)
+          implicit val timeout = Timeout(LEADER_ANSWER_TIME)
           l ? op onComplete {
             case Success(result) =>
               log(result+" => OP:"+op )
@@ -128,7 +131,7 @@ object Client {
         context.stop(self) // Client has executed all operations
         case _ => {
           context.unbecome()
-          scheduler.scheduleOnce(0.seconds, self, DoRequest)
+          scheduler.scheduleOnce(DO_OP_TIME, self, DoRequest)
         }
       }
     }
@@ -138,7 +141,7 @@ object Client {
         case Some(t) => t.cancel()
         case None => Unit
       }
-      timeoutScheduler = Some(scheduler.scheduleOnce(1.seconds, self, "timeout"))
+      timeoutScheduler = Some(scheduler.scheduleOnce(ANSWER_TIME, self, "timeout"))
     }
   }
 }

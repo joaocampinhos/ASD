@@ -25,6 +25,7 @@ object Deployer {
     var paxos = system.actorOf(Props(new PaxosActor(totalServers)), name = "Paxos")
     var serversMap = HashMap[String, ActorRef]()
     var clientsMap = HashMap[String, ActorRef]()
+    var debug = false
 
     deployServers(0 to totalServers - 1)
     serversMap.values.map(e => {
@@ -32,11 +33,15 @@ object Deployer {
       implicit val timeout = Timeout(5 seconds)
       val future = e ? ServersConf(serversMap)
       future onComplete {
-        case Success(result) => println(result)
-        case Failure(failure) => println(failure)
+        case Success(result) => debugLog(result)
+        case Failure(failure) => debugLog(failure)
       }
     })
     deployClients(0 to config.getInt("totalClients")- 1)
+    log("Deployment was successful.")
+
+    def log(text: Any) = { println(Console.RED + "[Deployer] " + Console.GREEN + text + Console.WHITE) }
+    def debugLog(text: Any) = { if (debug) println(Console.RED + "[Deployer] " + Console.GREEN + text + Console.WHITE) }
 
     def createServer(remotePath: String, serverIdx: Int): ActorRef = {
       system.actorOf(Props(classOf[ServerActor], paxos)

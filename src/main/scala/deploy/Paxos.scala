@@ -58,10 +58,10 @@ object Paxos {
     def debugLog(text: Any) = { if (debug) println(Console.RED + "[" + self.path.name + "] " + Console.GREEN + text + Console.WHITE) }
 
     for (s <- 1 to totalServers) {
-      learners += context.actorOf(Props(new Learner(self, totalServers)), name = "learner" + s)
       acceptors += context.actorOf(Props(new Acceptor), name = "acceptor" + s)
       proposers += context.actorOf(Props(new Proposer), name = "proposer" + s)
     }
+      learners += context.actorOf(Props(new Learner(self, totalServers)), name = "learner")
 
     proposers.foreach(_ ! Servers(acceptors))
     acceptors.foreach(_ ! Servers(learners))

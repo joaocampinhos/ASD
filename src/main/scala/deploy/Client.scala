@@ -23,7 +23,7 @@ import deploy.Stat.Messages.{ ClientStart, ClientEnd, StatOp }
 object Client {
   val DO_OP_TIME = 0.seconds
   val ANSWER_TIME = 2.seconds
-  val LEADER_ANSWER_TIME = 1.seconds
+  val LEADER_ANSWER_TIME = 2.seconds
   case class ClientConf(readsRate: Int, maxOpsNumber: Int, zipfNumber: Int)
 
   def parseClientConf(config: Config): ClientConf = {

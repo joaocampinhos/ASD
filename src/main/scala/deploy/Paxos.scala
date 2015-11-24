@@ -76,7 +76,15 @@ object Paxos {
     var done = false
 
     def receive = {
-      case Start(v) =>
+      case Start(UpdateView(v)) =>
+        debugLog("Started paxos for a view")
+        toRespond = new MutableList() ++ v.participants
+        toRespond += sender
+        proposers(0) ! Operation(UpdateView(v))
+        proposers(0) ! Go
+
+      case Start(v:ActorRef) =>
+        debugLog("Started paxos for a leader")
         if (toRespond.size < totalServers) {
           toRespond += sender
           proposers(toRespond.size - 1) ! Operation(v)

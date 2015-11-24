@@ -47,7 +47,7 @@ object Deployer {
     def debugLog(text: Any) = { if (debug) println(Console.RED + "[Deployer] " + Console.GREEN + text + Console.WHITE) }
 
     def createServer(remotePath: String, serverIdx: Int): ActorRef = {
-      system.actorOf(Props(classOf[ServerActor], paxos, stat)
+      system.actorOf(Props(classOf[ServerActor], serverIdx, paxos, stat)
         .withDeploy(Deploy(scope = RemoteScope(AddressFromURIString(remotePath)))), "Server" + serverIdx)
     }
 

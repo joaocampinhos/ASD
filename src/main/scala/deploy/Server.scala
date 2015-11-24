@@ -25,7 +25,7 @@ object Server {
 
   case class ServersConf(servers: collection.mutable.HashMap[String, ActorRef])
 
-  case class ServerActor(paxos: ActorRef, stat: ActorRef) extends Actor {
+  case class ServerActor(id: Int, paxos: ActorRef, stat: ActorRef) extends Actor {
     import context.dispatcher
 
     val log = Logging(context.system, this)
@@ -34,6 +34,18 @@ object Server {
     var actualLeader: Option[ActorRef] = None
     var alzheimer = false
     var debug = false
+
+    // vars and vals
+    var coordinator: ActorRef = null
+    var serverId = -1
+    var isLeader = false; //highest server ID gets to be the leader
+    var myCurrentViewId = id
+    var currentView = View(myCurrentViewId, self, List(), List())
+    var kvStore = collection.mutable.Map[String, String]()
+    var otherServers: Seq[ActorRef] = null
+    var lastOperationId = 0
+    var numSlaves = 0
+    var quorumSize = -1
 
     stat ! ServerStart(self.path)
 
@@ -44,16 +56,32 @@ object Server {
     override def postStop() {
       stat ! ServerEnd(self.path)
       log("Shuting down")
+      debugLog(s"view(${currentView.id},${currentView.leader},${currentView.participants.map(e => e.path.name).toList})")
     }
 
     def log(text: Any) = { println(Console.RED + "[" + self.path.name + "] " + Console.GREEN + text + Console.WHITE) }
     def debugLog(text: Any) = { if (debug) println(Console.RED + "[" + self.path.name + "] " + Console.GREEN + text + Console.WHITE) }
 
+    var currentOperationId = 0 //TODO TO IMPROVE
+    def getOperationId() = {
+      currentOperationId += 1
+      currentOperationId
+    }
+
     def waitForData(): Receive = {
       case Shutdown =>
         context.stop(self)
       case ServersConf(map) =>
+        coordinator = sender
         serversAddresses = map
+        this.otherServers = map.values.filter(e => e != self).toSeq
+        this.coordinator = coordinator
+        val numServers = otherServers.size + 1
+        if (numServers % 2 == 0) {
+          this.quorumSize = otherServers.size / 2 + 1
+        } else {
+          this.quorumSize = otherServers.size / 2
+        }
         paxos ! ServersConf(map)
         context.unbecome()
         sender ! Success("Ok " + self.path.name)
@@ -68,14 +96,91 @@ object Server {
         debugLog("I'm alive")
         sender ! true
       case WhoIsLeader => heartbeatThenAnswer(sender)
-      case Get(key) =>
-        val result = store.get(key)
-        log("Get:(" + key + "," + result + ")")
-        sender ! "OK"
-      case Put(key, value) =>
-        store += (key -> value)
-        log(key + " " + value)
-        sender ! "OK"
+
+      // case Get(key) =>
+      //   val result = store.get(key)
+      //   log("Get:(" + key + "," + result + ")")
+      //   sender ! "OK"
+      // case Put(key, value) =>
+      //   store += (key -> value)
+      //   log(key + " " + value)
+      //   sender ! "OK"
+
+      case UpdateView(view) => {
+        if (isLeader) {
+          // println("someone just told a leader to update their view.")
+        } else {
+          //just update the view man
+          currentView = view
+          debugLog(s"Replica received view state:${view.state}")
+          // println(s"$self updated its view.")
+          if (currentView.state.size > 0 && lastOperationId < currentView.state.last.id) {
+            val tmpList = (lastOperationId to currentView.state.last.id-1).map(e => currentView.state(e)).toList
+            for (op <- tmpList)
+              op match {
+                case Read(_, key) =>
+                  kvStore.get(key)
+                case Write(_, key, value) =>
+                  kvStore += (key -> value)
+              }
+            lastOperationId = currentView.state.last.id
+          }
+        }
+      }
+
+      case JoinView(serverId, who) => {
+        // possible cases
+        if (this.serverId < serverId) {
+          // only possible if I already own a quorum
+          if (isLeader) {
+            println(s"Received request to join the quorum.")
+          } else {
+            println("impossible!")
+          }
+        } else {
+          numSlaves += 1
+          if (!isLeader && numSlaves >= quorumSize) {
+            isLeader = true
+            coordinator ! LeaderElected(self)
+          }
+        }
+        // we always update the view
+        myCurrentViewId = 1 //TODO
+        currentView = View(myCurrentViewId, self, currentView.participants ::: List(who), currentView.state)
+        currentView.participants.foreach(_ ! UpdateView(currentView)) // send to all participants
+        println(s"View increased size by 1. Current leader is ${currentView.leader.path.name}")
+      }
+      //
+      // client ops
+      case op: Action => {
+        if (isLeader) {
+          myCurrentViewId = 1 //TODO
+          var newOp = op match {
+            case Get(key) => { Read(getOperationId(), key) }
+            case Put(key, value) => { Write(getOperationId(), key, value) }
+          }
+          currentView = View(myCurrentViewId, currentView.leader, currentView.participants, currentView.state ::: List(newOp))
+
+          // println(currentView)
+          // update view on all of the replicas
+          // currentView.participants.foreach(_ ! UpdateView(currentView))
+          implicit val timeout = Timeout(MAX_ELECTION_TIME)
+          var clt = sender
+          paxos ? Start(UpdateView(currentView)) onComplete {
+            case Success(UpdateView(result)) =>
+              debugLog("UpdateView by paxos: " + result)
+              result.state.last match {
+                case Read(_, key) => clt ! OperationSuccessful(s"Read($key)=${kvStore.get(key)}")
+                case Write(_, key, value) =>
+                  kvStore += (key -> value)
+                  clt ! OperationSuccessful(s"Write($key,$value)")
+              }
+            case Failure(failure) =>
+              debugLog("UpdateView error by paxos: " + failure)
+              clt ! OperationError(s"Op failed ")
+          }
+        }
+      }
       case _ => debugLog("[Stage: Responding to Get/Put] Received unknown message.")
     }
 
@@ -105,12 +210,15 @@ object Server {
       implicit val timeout = Timeout(MAX_ELECTION_TIME)
       paxos ? Start(self) onComplete {
         case Success(result: ActorRef) =>
-          debugLog("Election: " + result.path.name)
+          log("Election: " + result.path.name)
           actualLeader = Some(result)
+          isLeader = self == result
+          currentView = View(1, result, currentView.participants ::: otherServers.toList, currentView.state)
           if (alzheimer) //TODO CAREFULL
             actualLeader = None
           sender ! TheLeaderIs(result)
         case Failure(failure) =>
+          isLeader = false
           debugLog("Election failed: " + failure)
           actualLeader = None
       }

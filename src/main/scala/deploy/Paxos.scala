@@ -23,25 +23,76 @@ import akka.pattern.ask
 import akka.util.Timeout
 
 object Paxos {
-  class littlePaxos() extends Actor {
+  class ViewsPaxos(totalServers: Int) extends Actor {
     import context.dispatcher
 
-    var toRespond: Option[ActorRef] = None
-    var servers: HashMap[String, ActorRef] = HashMap[String, ActorRef]()
-
+    var count: Int = 0
+    val learners = MutableList[ActorRef]()
+    val acceptors = MutableList[ActorRef]()
+    val proposers = MutableList[ActorRef]()
     var debug = false
+
+    def log(text: Any) = { println(Console.RED + "[" + self.path.name + "] " + Console.GREEN + text + Console.WHITE) }
     def debugLog(text: Any) = { if (debug) println(Console.RED + "[" + self.path.name + "] " + Console.GREEN + text + Console.WHITE) }
 
+    proposers += context.actorOf(Props(new Proposer), name = "proposer")
+    for (s <- 1 to totalServers) {
+      acceptors += context.actorOf(Props(new Acceptor), name = "acceptor" + s)
+    }
+    learners += context.actorOf(Props(new Learner(self, totalServers)), name = "learner")
+
+    proposers.foreach(_ ! Servers(acceptors))
+    acceptors.foreach(_ ! Servers(learners))
+
+    // proposers.foreach(_ ! Debug)
+    // acceptors.foreach(_ ! Debug)
+    // learners.foreach(_ ! Debug)
+
+    var toRespond: MutableList[ActorRef] = MutableList[ActorRef]()
+
+    var done = false
+
     def receive = {
-      case Server.ServersConf(map) =>
-        servers = map
-      case Start(v) =>
-        toRespond = Some(sender)
-        self ! Learn(servers.values.head)
+      case Start(UpdateView(v)) =>
+        debugLog("Started paxos for a view")
+        toRespond = new MutableList() ++ v.participants
+        toRespond += sender
+        proposers(0) ! Operation(UpdateView(v))
+        proposers(0) ! Go
+
       case Learn(v) =>
-        toRespond match {
-          case Some(e) => e ! v
-          case None => debugLog("Something is wrong")
+        count = count + 1
+        if (count == learners.size) {
+          debugLog("Learned: " + v)
+          count = 0
+          for (p <- proposers) {
+            implicit val timeout = Timeout(50 seconds)
+            val future = p ? Stop
+            future onComplete {
+              case Success(result) => debugLog(result)
+              case Failure(failure) => debugLog(failure)
+            }
+          }
+          for (p <- acceptors) {
+            implicit val timeout = Timeout(50 seconds)
+            val future = p ? Stop
+            future onComplete {
+              case Success(result) => debugLog(result)
+              case Failure(failure) => debugLog(failure)
+            }
+          }
+          for (p <- learners) {
+            implicit val timeout = Timeout(50 seconds)
+            val future = p ? Stop
+            future onComplete {
+              case Success(result) => debugLog(result)
+              case Failure(failure) => debugLog(failure)
+            }
+          }
+          for (p <- toRespond) {
+            p ! v
+          }
+          toRespond = new MutableList[ActorRef]()
         }
     }
   }
@@ -76,13 +127,6 @@ object Paxos {
     var done = false
 
     def receive = {
-      case Start(UpdateView(v)) =>
-        debugLog("Started paxos for a view")
-        toRespond = new MutableList() ++ v.participants
-        toRespond += sender
-        proposers(0) ! Operation(UpdateView(v))
-        proposers(0) ! Go
-
       case Start(v:ActorRef) =>
         debugLog("Started paxos for a leader")
         if (toRespond.size < totalServers) {

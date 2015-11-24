@@ -25,7 +25,7 @@ object Server {
 
   case class ServersConf(servers: collection.mutable.HashMap[String, ActorRef])
 
-  case class ServerActor(id: Int, paxos: ActorRef, stat: ActorRef) extends Actor {
+  case class ServerActor(id: Int, paxos: ActorRef, paxosViews: ActorRef,stat: ActorRef) extends Actor {
     import context.dispatcher
 
     val log = Logging(context.system, this)
@@ -83,6 +83,7 @@ object Server {
           this.quorumSize = otherServers.size / 2
         }
         paxos ! ServersConf(map)
+        electLeaderThenAnswer(sender)
         context.unbecome()
         sender ! Success("Ok " + self.path.name)
         log("I'm ready")
@@ -96,15 +97,6 @@ object Server {
         debugLog("I'm alive")
         sender ! true
       case WhoIsLeader => heartbeatThenAnswer(sender)
-
-      // case Get(key) =>
-      //   val result = store.get(key)
-      //   log("Get:(" + key + "," + result + ")")
-      //   sender ! "OK"
-      // case Put(key, value) =>
-      //   store += (key -> value)
-      //   log(key + " " + value)
-      //   sender ! "OK"
 
       case UpdateView(view) => {
         if (isLeader) {
@@ -166,17 +158,18 @@ object Server {
           // currentView.participants.foreach(_ ! UpdateView(currentView))
           implicit val timeout = Timeout(MAX_ELECTION_TIME)
           var clt = sender
-          paxos ? Start(UpdateView(currentView)) onComplete {
+          paxosViews ? Start(UpdateView(currentView)) onComplete {
             case Success(UpdateView(result)) =>
-              debugLog("UpdateView by paxos: " + result)
+              debugLog("UpdateView by paxosViews: " + result)
               result.state.last match {
                 case Read(_, key) => clt ! OperationSuccessful(s"Read($key)=${kvStore.get(key)}")
                 case Write(_, key, value) =>
                   kvStore += (key -> value)
                   clt ! OperationSuccessful(s"Write($key,$value)")
               }
+            case Success(result) => log("### Something went wrong ###ACTION: "+result)
             case Failure(failure) =>
-              debugLog("UpdateView error by paxos: " + failure)
+              debugLog("UpdateView error by paxosViews: " + failure)
               clt ! OperationError(s"Op failed ")
           }
         }
@@ -192,9 +185,10 @@ object Server {
           else {
             implicit val timeout = Timeout(MAX_HEARTBEAT_TIME)
             l ? Alive onComplete {
-              case Success(result) =>
+              case Success(result: Boolean) =>
                 debugLog("Leader is alive: " + result)
                 respondTo ! TheLeaderIs(l)
+            case Success(result) => log("### Something went wrong ### HEARTBEAT: "+result)
               case Failure(failure) =>
                 debugLog("Failure: " + failure)
                 serversAddresses -= l.path.name
@@ -217,6 +211,7 @@ object Server {
           if (alzheimer) //TODO CAREFULL
             actualLeader = None
           sender ! TheLeaderIs(result)
+            case Success(result) => log("### Something went wrong: ### ELECTION "+result)
         case Failure(failure) =>
           isLeader = false
           debugLog("Election failed: " + failure)

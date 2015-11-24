@@ -8,6 +8,7 @@ import akka.event.Logging
 import deploy.Server._
 import deploy.Client._
 import deploy.Paxos.PaxosActor
+import deploy.Paxos.ViewsPaxos
 import scala.concurrent.duration._
 import scala.concurrent.Await
 import akka.pattern.ask
@@ -24,6 +25,7 @@ object Deployer {
     val system = ActorSystem(config.getString("deployer.name"), config)
     var totalServers = config.getInt("totalServers")
     var paxos = system.actorOf(Props(new PaxosActor(totalServers)), name = "Paxos")
+    var paxosV = system.actorOf(Props(new ViewsPaxos(3)), name = "PaxosViews")
     var stat = system.actorOf(Props(new StatActor()), name = "stat")
     var serversMap = HashMap[String, ActorRef]()
     var clientsMap = HashMap[String, ActorRef]()
@@ -47,7 +49,7 @@ object Deployer {
     def debugLog(text: Any) = { if (debug) println(Console.RED + "[Deployer] " + Console.GREEN + text + Console.WHITE) }
 
     def createServer(remotePath: String, serverIdx: Int): ActorRef = {
-      system.actorOf(Props(classOf[ServerActor], serverIdx, paxos, stat)
+      system.actorOf(Props(classOf[ServerActor], serverIdx, paxos,paxosV, stat)
         .withDeploy(Deploy(scope = RemoteScope(AddressFromURIString(remotePath)))), "Server" + serverIdx)
     }
 

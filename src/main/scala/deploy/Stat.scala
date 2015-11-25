@@ -148,7 +148,7 @@ object Stat {
             latency += x._2.lattotal
           }
       }
-      writer.write(f"Tempo medio  : ${time.toFloat / totalClients}%.2f ms\n")
+      writer.write(f"Tempo medio  : ${time / totalClients}%d ms\n")
       writer.write(f"Throughput   : ${throughput / totalClients}%d ops/min\n")
       writer.write(f"Latencia     : ${latency / totalClients}%d ms\n")
       writer.close()

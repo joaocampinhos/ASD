@@ -48,6 +48,10 @@ object Client {
     var debug = false
     var timeoutScheduler: Option[Cancellable] = None
 
+    var start:Long = 0
+    var end:Long = 0
+    var sum:Long = 0
+
     log("I'm ready")
     stat ! ClientStart(self.path)
 
@@ -72,6 +76,7 @@ object Client {
           case Get(_) => stat ! StatOp(self.path, "get")
           case Put(_, _) => stat ! StatOp(self.path, "put")
         }
+        start = java.lang.System.currentTimeMillis()
         sendToLeader(op, false)
       case a: Any => debugLog("[Stage:Getting Leader Address] Received unknown message. " + a)
     }
@@ -104,13 +109,13 @@ object Client {
           implicit val timeout = Timeout(LEADER_ANSWER_TIME)
           l ? op onComplete {
             case Success(result) =>
+              end = java.lang.System.currentTimeMillis()
+              sum += (end - start)
               log(result + " => OP:" + op + " on " + l.path.name)
-              op match {
-                case Get(_) => stat ! StatOp(self.path, "getsuc")
-                case Put(_, _) => stat ! StatOp(self.path, "putsuc")
-              }
               resetRole()
             case Failure(failure) =>
+              end = java.lang.System.currentTimeMillis()
+              sum += (end - start)
               log("OP:" + op + " failed: " + failure + " on " + l.path.name)
               serversURI-= l.path.name
               debugLog("Total servers " +serversURI.size)
@@ -147,7 +152,7 @@ object Client {
     def resetRole() = {
       opsCounter match {
         case clientConf.maxOpsNumber =>
-          stat ! Lat(self.path, 1)
+          stat ! Lat(self.path, sum.toInt)
           log("Executed all ops")
           cancelOpTimeout()
           //Tempo total

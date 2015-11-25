@@ -18,7 +18,7 @@ import scala.concurrent.duration._
 import util.Failure
 import util.Success
 import paxos._
-import deploy.Stat.Messages.{ ClientStart, ClientEnd, StatOp }
+import deploy.Stat.Messages.{ ClientStart, ClientEnd, StatOp, Lat }
 
 object Client {
   val DO_OP_TIME = 0.seconds
@@ -147,11 +147,10 @@ object Client {
     def resetRole() = {
       opsCounter match {
         case clientConf.maxOpsNumber =>
+          stat ! Lat(self.path, 1)
           log("Executed all ops")
           cancelOpTimeout()
-          //TODO:Enviar para o stat yo
           //Tempo total
-          //opsCounter
           context.stop(self) // Client has executed all operations
         case _ => {
           context.unbecome()

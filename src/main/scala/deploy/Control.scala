@@ -41,7 +41,7 @@ object Control{ //TODO to improve
     serversIdxToKill.foreach( idx => {
       val msg = idx match{
         case "stat" => "end"
-        case _ => Shutdown
+        case _ => Stop
       }
       serversURI.foreach( e => system.actorSelection(e + "/user/Server" + idx) ! msg)
     })

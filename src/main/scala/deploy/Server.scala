@@ -1,35 +1,40 @@
 package deploy
 
 import akka.actor._
-import akka.remote.RemoteScope
 import akka.event.Logging
-import scala.collection.mutable.MutableList
-import scala.collection.mutable.HashMap
-import akka.actor.Actor
+import akka.actor.{Actor,ActorRef}
 import akka.event.Logging
-import akka.actor.ActorRef
-import scala.concurrent.duration._
-import scala.concurrent.forkjoin.ThreadLocalRandom
-import scala.util.Failure
-import scala.util.Success
-import paxos._
 import akka.pattern.ask
 import akka.util.Timeout
+import collection.mutable.MutableList
+import collection.mutable.HashMap
+import concurrent.duration._
+import concurrent.forkjoin.ThreadLocalRandom
+import util.{Failure ,Success}
+import paxos._
 import scala.concurrent.{ Await, ExecutionContext, Future }
 import scala.concurrent.duration._
-import deploy.Stat.Messages.{ ServerStart, ServerEnd }
+import stats.Messages.{ ServerStart, ServerEnd }
+import views.Views.{ OperationSuccessful, OperationError, Write, Read, UpdateView, View, JoinView, LeaderElected }
 
 object Server {
   val MAX_HEARTBEAT_TIME = 2.seconds
   val MAX_ELECTION_TIME = 3.seconds
 
+  abstract class Action
+  case class Get(key: String) extends Action
+  case class Put(key: String, value: String) extends Action
+  case object SearchTimeout
+  case object Stop
+  case object WhoIsLeader
+  case object Alive
+  case class TheLeaderIs(l: ActorRef)
   case class ServersConf(servers: collection.mutable.HashMap[String, ActorRef])
 
-  case class ServerActor(id: Int, paxos: ActorRef, paxosViews: ActorRef,stat: ActorRef) extends Actor {
+  case class ServerActor(id: Int, paxos: ActorRef, paxosViews: ActorRef, stat: ActorRef) extends Actor {
     import context.dispatcher
 
     val log = Logging(context.system, this)
-    var store = scala.collection.mutable.HashMap[String, String]()
     var serversAddresses = HashMap[String, ActorRef]()
     var actualLeader: Option[ActorRef] = None
     var alzheimer = false
@@ -37,9 +42,9 @@ object Server {
 
     // vars and vals
     var coordinator: ActorRef = null
-    var serverId = -1
+    var serverId = id
     var isLeader = false; //highest server ID gets to be the leader
-    var myCurrentViewId = id
+    var myCurrentViewId = 0
     var currentView = View(myCurrentViewId, self, List(), List())
     var kvStore = collection.mutable.Map[String, String]()
     var otherServers: Seq[ActorRef] = null
@@ -69,7 +74,7 @@ object Server {
     }
 
     def waitForData(): Receive = {
-      case Shutdown =>
+      case Stop =>
         context.stop(self)
       case ServersConf(map) =>
         coordinator = sender
@@ -91,7 +96,7 @@ object Server {
     }
 
     def receive(): Receive = {
-      case Shutdown =>
+      case Stop =>
         context.stop(self)
       case Alive =>
         debugLog("I'm alive")
@@ -107,7 +112,7 @@ object Server {
           debugLog(s"Replica received view state:${view.state}")
           // println(s"$self updated its view.")
           if (currentView.state.size > 0 && lastOperationId < currentView.state.last.id) {
-            val tmpList = (lastOperationId to currentView.state.last.id-1).map(e => currentView.state(e)).toList
+            val tmpList = (lastOperationId to currentView.state.last.id - 1).map(e => currentView.state(e)).toList
             for (op <- tmpList)
               op match {
                 case Read(_, key) =>
@@ -152,10 +157,6 @@ object Server {
             case Put(key, value) => { Write(getOperationId(), key, value) }
           }
           currentView = View(myCurrentViewId, currentView.leader, currentView.participants, currentView.state ::: List(newOp))
-
-          // println(currentView)
-          // update view on all of the replicas
-          // currentView.participants.foreach(_ ! UpdateView(currentView))
           implicit val timeout = Timeout(MAX_ELECTION_TIME)
           var clt = sender
           paxosViews ? Start(UpdateView(currentView)) onComplete {
@@ -167,7 +168,7 @@ object Server {
                   kvStore += (key -> value)
                   clt ! OperationSuccessful(s"Write($key,$value)")
               }
-            case Success(result) => log("### Something went wrong ###ACTION: "+result)
+            case Success(result) => log("### Something went wrong ###ACTION: " + result)
             case Failure(failure) =>
               debugLog("UpdateView error by paxosViews: " + failure)
               clt ! OperationError(s"Op failed ")
@@ -188,7 +189,7 @@ object Server {
               case Success(result: Boolean) =>
                 debugLog("Leader is alive: " + result)
                 respondTo ! TheLeaderIs(l)
-            case Success(result) => log("### Something went wrong ### HEARTBEAT: "+result)
+              case Success(result) => log("### Something went wrong ### HEARTBEAT: " + result)
               case Failure(failure) =>
                 debugLog("Failure: " + failure)
                 serversAddresses -= l.path.name
@@ -211,7 +212,7 @@ object Server {
           if (alzheimer) //TODO CAREFULL
             actualLeader = None
           sender ! TheLeaderIs(result)
-            case Success(result) => log("### Something went wrong: ### ELECTION "+result)
+        case Success(result) => log("### Something went wrong: ### ELECTION " + result)
         case Failure(failure) =>
           isLeader = false
           debugLog("Election failed: " + failure)

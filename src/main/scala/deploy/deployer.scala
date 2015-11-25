@@ -5,18 +5,15 @@ import com.typesafe.config.ConfigFactory
 import akka.actor.{ ActorSystem, Props, Actor, ActorRef, Deploy, AddressFromURIString }
 import akka.remote.RemoteScope
 import akka.event.Logging
-import deploy.Server._
-import deploy.Client._
-import deploy.Paxos.PaxosActor
-import deploy.Paxos.ViewsPaxos
-import scala.concurrent.duration._
-import scala.concurrent.Await
 import akka.pattern.ask
 import akka.util.Timeout
-import scala.concurrent.duration._
-import scala.util.Failure
-import scala.util.Success
-import deploy.Stat._
+import concurrent.Await
+import concurrent.duration._
+import util.{Failure,Success}
+import stats._
+import deploy.Server._
+import deploy.Client._
+import paxos.{PaxosActor, ViewsPaxos}
 
 object Deployer {
   def main(args: Array[String]) {

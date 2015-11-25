@@ -1,30 +1,27 @@
 package deploy
 
-import akka.actor.Cancellable
 import org.apache.commons.math3.distribution.ZipfDistribution
-import collection.mutable.HashMap
-import collection.mutable.MutableList
-import akka.actor.Actor
-import akka.event.Logging
-import akka.actor.ActorRef
-import concurrent.duration._
+import org.apache.commons.math3.distribution.ZipfDistribution
 import com.typesafe.config.Config
-import concurrent.forkjoin.ThreadLocalRandom
-import org.apache.commons.math3.distribution.ZipfDistribution
-import concurrent.Await
+import akka.actor.Cancellable
 import akka.pattern.ask
 import akka.util.Timeout
-import scala.concurrent.duration._
-import util.Failure
-import util.Success
-import paxos._
-import deploy.Stat.Messages.{ ClientStart, ClientEnd, StatOp }
+import akka.actor.{ Actor, ActorRef }
+import akka.event.Logging
+import collection.mutable.{ HashMap, MutableList }
+import concurrent.duration._
+import concurrent.forkjoin.ThreadLocalRandom
+import concurrent.Await
+import util.{Failure ,Success}
+import deploy.Server.{ Get, Put, Action, WhoIsLeader, TheLeaderIs, Alive }
+import stats.Messages.{ ClientStart, ClientEnd, StatOp }
 
 object Client {
   val DO_OP_TIME = 0.seconds
   val ANSWER_TIME = 2.seconds
   val LEADER_ANSWER_TIME = 2.seconds
   case class ClientConf(readsRate: Int, maxOpsNumber: Int, zipfNumber: Int)
+  case object DoRequest
 
   def parseClientConf(config: Config): ClientConf = {
     new ClientConf(
@@ -112,8 +109,8 @@ object Client {
               resetRole()
             case Failure(failure) =>
               log("OP:" + op + " failed: " + failure + " on " + l.path.name)
-              serversURI-= l.path.name
-              debugLog("Total servers " +serversURI.size)
+              serversURI -= l.path.name
+              debugLog("Total servers " + serversURI.size)
               serverLeader = None
               findLeader(op, consecutiveError)
           }

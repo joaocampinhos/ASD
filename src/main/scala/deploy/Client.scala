@@ -12,7 +12,7 @@ import collection.mutable.{ HashMap, MutableList }
 import concurrent.duration._
 import concurrent.forkjoin.ThreadLocalRandom
 import concurrent.Await
-import util.{Failure ,Success}
+import util.{ Failure, Success }
 import deploy.Server.{ Get, Put, Action, WhoIsLeader, TheLeaderIs, Alive }
 import stats.Messages.{ ClientStart, ClientEnd, StatOp }
 

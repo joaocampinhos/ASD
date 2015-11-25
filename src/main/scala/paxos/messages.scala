@@ -1,5 +1,6 @@
 package paxos
-import akka.actor._
+
+import akka.actor.ActorRef
 import scala.collection.mutable.MutableList
 
 case object Debug
@@ -34,5 +35,4 @@ case class AcceptAgain(t: Int, m: Option[Proposal])
 case class Learn(v: Any)
 
 case class Operation(v: Any)
-
 

@@ -1,25 +1,18 @@
 package paxos
 
-import akka.actor._
+import akka.actor.{ Actor, ActorRef, Props }
 import akka.remote.RemoteScope
 import akka.event.Logging
-import scala.collection.mutable.MutableList
-import scala.collection.mutable.HashMap
-import akka.actor.Actor
-import akka.event.Logging
-import akka.actor.ActorRef
+import akka.util.Timeout
+import akka.pattern.ask
+import scala.collection.mutable.{ MutableList, HashMap }
 import scala.concurrent.duration._
 import scala.concurrent.forkjoin.ThreadLocalRandom
-import scala.util.Failure
-import scala.util.Success
-import akka.pattern.ask
-import akka.util.Timeout
 import scala.concurrent.{ Await, ExecutionContext, Future }
-import scala.concurrent.duration._
-import scala.concurrent.duration._
 import scala.concurrent.Await
 import akka.pattern.ask
-import akka.util.Timeout
+import util.Failure
+import util.Success
 import views.Views.{ OperationSuccessful, OperationError, Write, Read, UpdateView, View, JoinView, LeaderElected }
 
 class PaxosBase() extends Actor {

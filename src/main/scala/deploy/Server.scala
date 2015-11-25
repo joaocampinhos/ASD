@@ -1,19 +1,15 @@
 package deploy
 
-import akka.actor._
 import akka.event.Logging
-import akka.actor.{Actor,ActorRef}
-import akka.event.Logging
+import akka.actor.{ Actor, ActorRef }
 import akka.pattern.ask
 import akka.util.Timeout
-import collection.mutable.MutableList
-import collection.mutable.HashMap
+import collection.mutable.{ MutableList, HashMap }
 import concurrent.duration._
 import concurrent.forkjoin.ThreadLocalRandom
-import util.{Failure ,Success}
-import paxos._
-import scala.concurrent.{ Await, ExecutionContext, Future }
-import scala.concurrent.duration._
+import concurrent.{ Await, ExecutionContext, Future }
+import util.{ Failure, Success }
+import paxos.Start
 import stats.Messages.{ ServerStart, ServerEnd }
 import views.Views.{ OperationSuccessful, OperationError, Write, Read, UpdateView, View, JoinView, LeaderElected }
 

@@ -1,16 +1,9 @@
 package stats
 
-import akka.actor.ActorSystem
-import akka.actor.ActorPath
-import akka.actor.Props
-import akka.actor.Actor
-import akka.actor.ActorRef
-import akka.actor.Cancellable
+import akka.actor.{ ActorSystem, ActorPath, Props, Actor, ActorRef, Cancellable }
 import akka.event.Logging
-import scala.concurrent.duration._
 import java.io._
 import scala.Console
-import deploy.Client._
 
 case object Messages {
   case class ClientStart(path: ActorPath)

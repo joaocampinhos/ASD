@@ -1,19 +1,19 @@
 package deploy
 
-import collection.mutable.HashMap
 import com.typesafe.config.ConfigFactory
 import akka.actor.{ ActorSystem, Props, Actor, ActorRef, Deploy, AddressFromURIString }
 import akka.remote.RemoteScope
 import akka.event.Logging
 import akka.pattern.ask
 import akka.util.Timeout
+import collection.mutable.HashMap
 import concurrent.Await
 import concurrent.duration._
-import util.{Failure,Success}
-import stats._
-import deploy.Server._
-import deploy.Client._
-import paxos.{PaxosActor, ViewsPaxos}
+import util.{ Failure, Success }
+import stats.StatActor
+import deploy.Server.{ ServerActor, ServersConf }
+import deploy.Client.ClientActor
+import paxos.{ PaxosActor, ViewsPaxos }
 
 object Deployer {
   def main(args: Array[String]) {
@@ -46,7 +46,7 @@ object Deployer {
     def debugLog(text: Any) = { if (debug) println(Console.RED + "[Deployer] " + Console.GREEN + text + Console.WHITE) }
 
     def createServer(remotePath: String, serverIdx: Int): ActorRef = {
-      system.actorOf(Props(classOf[ServerActor], serverIdx, paxos,paxosV, stat)
+      system.actorOf(Props(classOf[ServerActor], serverIdx, paxos, paxosV, stat)
         .withDeploy(Deploy(scope = RemoteScope(AddressFromURIString(remotePath)))), "Server" + serverIdx)
     }
 

@@ -1,6 +1,7 @@
 package deploy
 
 import akka.actor.ActorSystem
+import com.typesafe.config.ConfigFactory
 import akka.actor.ActorPath
 import akka.actor.Props
 import akka.actor.Actor
@@ -66,6 +67,14 @@ object Stat {
     // Número de readTags
     var readtag = 0
 
+
+    //---------------------------------------
+    // Segundo trabalho
+
+    // Latência total
+    var nLat = 0
+    var lTot = 0
+
   }
 
   case class StatActor() extends Actor {
@@ -78,13 +87,17 @@ object Stat {
     var end: Long = 0
     var stat: Map[akka.actor.ActorPath, State] = Map()
 
-    // tempo de execucao do sistema -> Não funciona com a implementação actual
-    // tempo de execucao de cada cliente -> Não funciona com a implementação actual
-    // tempo de execucao medio de get -> implementado mas não testado
-    // tempo de execucao medio de put -> implementado mas não testado
-    // dump para ficheiro -> TODO
+    // Tempo de Execução médio dos clientes
+    // Tempo de Execução médio de cada operação (Latencia)
 
     def receive = {
+
+      //Segundo trabalho
+
+      case lat(v) =>
+        nLat = nLat + 1
+        lTot = lTot + v
+
       case "start" =>
         start = java.lang.System.currentTimeMillis()
         log("Started!")
@@ -139,8 +152,29 @@ object Stat {
     def debugLog(text: Any) = {if(debug) println(Console.BLUE + "[Stat] " + Console.GREEN + text + Console.WHITE) }
 
     def dump() = {
+      val config = ConfigFactory.load("deployer")
+      val totalServers = config.getInt("totalServers")
+      val totalClients = config.getInt("totalClients")
+      val perReads = config.getInt("ratioOfReads")
+      println(totalServers)
+      val writer = new PrintWriter(new File(f"s$totalServers%dc$totalClients%dr$perReads%d.txt"))
+      writer.write("----------------------------")
+      writer.write(f"Servidores: $totalServers%d")
+      writer.write(f"Clientes  : $totalClients%d")
+      writer.write(f"% Reads   : $ratioOfReads%d")
+      writer.write("----------------------------")
+      writer.write(f"Latência  : ${ }.2f)
+      writer.close()
+      //val writerF = new PrintWriter(new File("ptaras.txt"))
+      // Sacar do ficheiro de configuração
+      // Nº total de clientes
+      // Nº total de servidores
+      // Percentagem de reads
+      // ------------
+      /*
       val writer = new PrintWriter(new File("serverclient.csv"))
       val writer2 = new PrintWriter(new File("times.csv"))
+
       writer.write("sep=,\n")
       writer2.write("sep=,\n")
       writer.write("Adress,isServer,execTime,#gets,#puts,#readtag,#getsuc,#putsuc\n")
@@ -160,6 +194,7 @@ object Stat {
       }
       writer.close()
       writer2.close()
+      */
     }
   }
 }

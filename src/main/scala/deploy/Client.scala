@@ -149,6 +149,9 @@ object Client {
         case clientConf.maxOpsNumber =>
           log("Executed all ops")
           cancelOpTimeout()
+          //TODO:Enviar para o stat yo
+          //Tempo total
+          //opsCounter
           context.stop(self) // Client has executed all operations
         case _ => {
           context.unbecome()

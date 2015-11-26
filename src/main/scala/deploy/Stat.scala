@@ -135,7 +135,7 @@ object Stat {
       writer.write("----------------------------\n")
       var throughput = 0
       var time:Long = 0
-      var latency = 0
+      var latency:Float = 0
       stat.foreach {
         x =>
           if (!x._2.server) {
@@ -144,13 +144,13 @@ object Stat {
             //thoughput (ops/segundo)
             val ops = x._2.ops
             throughput += (ops/(time.toFloat/1000)).toInt
-            //latencia media total (ms)
-            latency += x._2.lattotal
+            //latencia media de cada pedido (ms)
+            latency += x._2.lattotal.toFloat/ops
           }
       }
       writer.write(f"Tempo medio  : ${time / totalClients}%d ms\n")
       writer.write(f"Throughput   : ${throughput / totalClients}%d ops/min\n")
-      writer.write(f"Latencia     : ${latency / totalClients}%d ms\n")
+      writer.write(f"Latencia     : ${(latency / totalClients).toInt}%d ms\n")
       writer.close()
     }
   }

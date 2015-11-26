@@ -30,7 +30,7 @@ object Server {
 
   case class ServerActor(id: Int, paxos: ActorRef, paxosViews: ActorRef, stat: ActorRef) extends Actor {
     import context.dispatcher
-
+    var replicationDegree = 3
     val log = Logging(context.system, this)
     var serversAddresses = HashMap[String, ActorRef]()
     var actualLeader: Option[ActorRef] = None
@@ -48,6 +48,8 @@ object Server {
     var lastOperationId = 0
     var numSlaves = 0
     var quorumSize = -1
+
+    var viewsmap = HashMap[String, View]()
 
     stat ! ServerStart(self.path)
 
@@ -92,14 +94,20 @@ object Server {
       case _ => debugLog("[Stage: Waiting for servers' address] Received unknown message.")
     }
 
+    def viewSetup() = {
+      for (p <- 1 to (12/replicationDegree)){
+        viewsmap += (p.toString -> new View(1, self, List(), List()))
+      }
+    }
+
     def receive(): Receive = {
       case Stop =>
         context.stop(self)
       case Alive =>
         debugLog("I'm alive")
         sender ! true
-      case WhoIsLeader => heartbeatThenAnswer(sender)
-
+      case WhoIsLeader =>
+        heartbeatThenAnswer(sender)
       case UpdateView(view) => {
         if (isLeader) {
           // println("someone just told a leader to update their view.")

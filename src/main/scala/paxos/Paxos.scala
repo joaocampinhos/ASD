@@ -100,7 +100,7 @@ class ViewsPaxos(totalServers: Int) extends PaxosBase {
   }
 }
 
-class PaxosActor(totalServers: Int) extends PaxosBase {
+class PaxosActor(id: Int,totalServers: Int) extends PaxosBase {
   import context.dispatcher
   setupRoles()
   override def setupRoles() = {
@@ -119,7 +119,7 @@ class PaxosActor(totalServers: Int) extends PaxosBase {
   }
 
   override def receive = {
-    case Start(v: ActorRef) =>
+    case Start(v: Any) =>
       debugLog("Started paxos for a leader")
       if (toRespond.size < totalServers) {
         toRespond += sender
@@ -131,7 +131,7 @@ class PaxosActor(totalServers: Int) extends PaxosBase {
     case Learn(v) =>
       count = count + 1
       if (count == learners.size) {
-        debugLog("Learned: " + v)
+        log("Learned: " + v)
         count = 0
         for (p <- proposers) {
           implicit val timeout = Timeout(50 seconds)
@@ -158,7 +158,7 @@ class PaxosActor(totalServers: Int) extends PaxosBase {
           }
         }
         for (p <- toRespond) {
-          p ! v
+          p ! (id,v)
         }
         toRespond = new MutableList[ActorRef]()
       }

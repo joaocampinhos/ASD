@@ -21,8 +21,9 @@ object Deployer {
     val config = ConfigFactory.load("deployer")
     val system = ActorSystem(config.getString("deployer.name"), config)
     var totalServers = config.getInt("totalServers")
-    var paxos = system.actorOf(Props(new PaxosActor(totalServers)), name = "Paxos")
+    var paxos = system.actorOf(Props(new PaxosActor(-4,totalServers)), name = "Paxos")
     var paxosV = system.actorOf(Props(new ViewsPaxos(3)), name = "PaxosViews")
+    var paxoslist = (0 to totalServers).map(e => system.actorOf(Props(new PaxosActor(e, 3)), name = "Paxos" + (e))).toList
     var stat = system.actorOf(Props(new StatActor()), name = "stat")
     var serversMap = HashMap[String, ActorRef]()
     var clientsMap = HashMap[String, ActorRef]()
@@ -46,7 +47,7 @@ object Deployer {
     def debugLog(text: Any) = { if (debug) println(Console.RED + "[Deployer] " + Console.GREEN + text + Console.WHITE) }
 
     def createServer(remotePath: String, serverIdx: Int): ActorRef = {
-      system.actorOf(Props(classOf[ServerActor], serverIdx, paxos, paxosV, stat)
+      system.actorOf(Props(classOf[ServerActor], serverIdx, paxos, paxosV, stat, paxoslist)
         .withDeploy(Deploy(scope = RemoteScope(AddressFromURIString(remotePath)))), "Server" + serverIdx)
     }
 

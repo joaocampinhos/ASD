@@ -26,14 +26,14 @@ object Server {
   case object WhoIsLeader
   case object Alive
   case class TheLeaderIs(l: ActorRef)
-  case class ServerDetails(keyHash: String, id: Int, view: View)
-  case class JoinView(keyHash: String, id: Int, who: ActorRef)
-  case class UpdateView(keyHash: String, view: View)
+  case class ServerDetails(keyHash: Int, id: Int, view: View)
+  case class JoinView(keyHash: Int, id: Int, who: ActorRef)
+  case class UpdateView(keyHash: Int, view: View)
   case class ServersConf(servers: collection.mutable.HashMap[String, ActorRef])
 
-  case class ServerActor(id: Int, paxos: ActorRef, paxosViews: ActorRef, stat: ActorRef) extends Actor {
+  case class ServerActor(id: Int, paxos: ActorRef, paxosViews: ActorRef, stat: ActorRef, paxoslist: List[ActorRef]) extends Actor {
     import context.dispatcher
-    var replicationDegree = 2
+    var replicationDegree = 3
     val log = Logging(context.system, this)
     var serversAddresses = HashMap[String, ActorRef]()
     var actualLeader: Option[ActorRef] = None
@@ -52,7 +52,7 @@ object Server {
     var numSlaves = 0
     var quorumSize = -1
 
-    var viewsmap = HashMap[String, View]()
+    var viewsmap = HashMap[Int, View]()
     stat ! ServerStart(self.path)
 
     override def preStart(): Unit = {
@@ -164,34 +164,53 @@ object Server {
       case _ => debugLog("[Stage: Waiting for servers' address] Received unknown message.")
     }
 
-    def isLeader(keyHash: String): Boolean = {
+    def isLeader(keyHash: Int): Boolean = {
       var res = ((viewsmap.get(keyHash).map(_.leader == self).get)
         && ((viewsmap.getOrElse(keyHash, View(this.id, self, List(), List())).participants.size) >= quorumSize))
       debugLog("H: " + keyHash + " isLeader: " + res + " Q: " + quorumSize + " ALL: " + (viewsmap.getOrElse(keyHash, View(this.id, self, List(), List())).participants.size))
       res
     }
 
-    def currentView(keyHash: String): View = {
+    def currentView(keyHash: Int): View = {
       viewsmap.getOrElse(keyHash, View(this.id, self, List(), List()))
     }
 
     def viewSetup() = {
       var tmplist = 0 to (serversAddresses.size - 1)
-      for (p <- 0 to ((tmplist.size / replicationDegree) - 1)) {
+      for (p <- 0 to ( replicationDegree - 1)) {
         var key = if (id - p >= 0) tmplist(id - p) else tmplist(tmplist.size + (id - p))
-        var l = (key to (key + replicationDegree - 1)).map(e => e % tmplist.size).filter(e => e != id).map(e => serversAddresses.get("Server" + e)).flatMap(e => e).toList
-        log(l.foldLeft(key"->") { (acc, n) =>
+        var l = (key to (key + replicationDegree )).map(e => e % tmplist.size).map(e => serversAddresses.get("Server" + e)).flatMap(e => e).toList
+        log(l.foldLeft("") { (acc, n) =>
           acc + ", " + n.path.name
         })
-        viewsmap += (key.toString -> new View(1, self, l, List()))
+        viewsmap += (key -> new View(1, self, l, List()))
       }
-      log(viewsmap.foldLeft("") { (acc, n) =>
-        acc + "\n" + n
-      })
-      viewsmap.foreach(t => t._2.participants.foreach(e => e ! ServerDetails(t._1, this.id, t._2)))
+      // log(viewsmap.foldLeft("") { (acc, n) =>
+      //   acc + "\n" + n
+      // })
+      // viewsmap.foreach(t => t._2  .participants.foreach(e => e ! ServerDetails(t._1, this.id, t._2)))
+      context.become(learn(), discardOld = true)
+log("S: "+viewsmap.size)
+      viewsmap.foreach(t => paxoslist(t._1) ! Start(t._2))
 
       // viewsmap.foreach(e=> 
       //     otherServers.foreach(_ ! ServerDetails(serverId, currentView))
+
+    }
+    var nlearns = new HashMap[Int, Int]()
+    def learn(): Receive = {
+      case (k: Int, v: View) =>
+        log("K: " + k + "L: " + v)
+        var novo = (nlearns.getOrElse(k,0) + 1)
+        nlearns += (k -> novo)
+        viewsmap += (k -> v)
+        if (nlearns.getOrElse(k,0) == 2) {
+          log(viewsmap.foldLeft("") { (acc, n) =>
+            acc + "\n" + n
+          })
+        }
+      case a: Any =>
+        log(a)
 
     }
 

@@ -39,7 +39,7 @@ object Deployer {
         case Failure(failure) => debugLog(failure)
       }
     })
-    deployClients(0 to config.getInt("totalClients") - 1)
+    // deployClients(0 to config.getInt("totalClients") - 1)
     log("Deployment was successful.")
 
     def log(text: Any) = { println(Console.RED + "[Deployer] " + Console.GREEN + text + Console.WHITE) }

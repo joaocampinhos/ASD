@@ -152,33 +152,32 @@ object Server {
         // check if the server has the necessary view
         myViews(key) match {
           case Some(View(v)) => {
-            
+              if (isLeaderOfView(key)) {
+                currentView = View(myCurrentViewId, currentView.leader, currentView.participants, currentView.state ::: List(newOp))
+                implicit val timeout = Timeout(MAX_ELECTION_TIME)
+                var clt = sender
+                paxosViews ? Start(UpdateView(currentView)) onComplete {
+                  case Success(UpdateView(result)) =>
+                    debugLog("UpdateView by paxosViews: " + result)
+                    result.state.last match {
+                      case Read(_, key) => clt ! OperationSuccessful(s"Read($key)=${kvStore.get(key)}")
+                      case Write(_, key, value) =>
+                        kvStore += (key -> value)
+                        clt ! OperationSuccessful(s"Write($key,$value)")
+                    }
+                case Success(result) => log("### Something went wrong ###ACTION: " + result)
+                case Failure(failure) =>
+                  debugLog("UpdateView error by paxosViews: " + failure)
+                  clt ! OperationError(s"Op failed ")
+              }
+            }
           }
           case None => {
 
           }
         }
         
-        if (isLeaderOfView(key)) {
-          currentView = View(myCurrentViewId, currentView.leader, currentView.participants, currentView.state ::: List(newOp))
-          implicit val timeout = Timeout(MAX_ELECTION_TIME)
-          var clt = sender
-          paxosViews ? Start(UpdateView(currentView)) onComplete {
-            case Success(UpdateView(result)) =>
-              debugLog("UpdateView by paxosViews: " + result)
-              result.state.last match {
-                case Read(_, key) => clt ! OperationSuccessful(s"Read($key)=${kvStore.get(key)}")
-                case Write(_, key, value) =>
-                  kvStore += (key -> value)
-                  clt ! OperationSuccessful(s"Write($key,$value)")
-              }
-            case Success(result) => log("### Something went wrong ###ACTION: " + result)
-            case Failure(failure) =>
-              debugLog("UpdateView error by paxosViews: " + failure)
-              clt ! OperationError(s"Op failed ")
-          }
-        }
-      }
+      
       case _ => debugLog("[Stage: Responding to Get/Put] Received unknown message.")
     }
 

@@ -19,9 +19,9 @@ object Views {
 
   case class OperationError(message: String)
 
-  case class JoinView(serverId: Int, who: ActorRef)
+  case class JoinView(key: String, serverId: Int, who: ActorRef)
 
-  case class UpdateView(newView: View)
+  case class UpdateView(key:String, newView: View)
 
   case class ConfigureCoordinator(servers: List[ActorRef], clients: List[ActorRef])
 

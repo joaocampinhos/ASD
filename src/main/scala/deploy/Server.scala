@@ -22,7 +22,7 @@ object Server {
   case class Put(key: String, value: String) extends Action
   case object SearchTimeout
   case object Stop
-  case object WhoIsLeader
+  case object WhoIsLeader(key: String)
   case object Alive
   case class TheLeaderIs(l: ActorRef)
   case class ServersConf(servers: collection.mutable.HashMap[String, ActorRef])
@@ -32,7 +32,6 @@ object Server {
 
     val log = Logging(context.system, this)
     var serversAddresses = HashMap[String, ActorRef]()
-    var actualLeader: Option[ActorRef] = None
     var alzheimer = false
     var debug = false
 
@@ -59,6 +58,13 @@ object Server {
       stat ! ServerEnd(self.path)
       log("Shuting down")
       debugLog(s"view(${currentView.id},${currentView.leader},${currentView.participants.map(e => e.path.name).toList})")
+    }
+
+    def isLeaderOfView(key: String) : Boolean = {
+      myViews(key) match {
+        case Some(View(v)) => v.leader == self
+        case None => false
+      }
     }
 
     def log(text: Any) = { println(Console.RED + "[" + self.path.name + "] " + Console.GREEN + text + Console.WHITE) }
@@ -98,7 +104,7 @@ object Server {
       case Alive =>
         debugLog("I'm alive")
         sender ! true
-      case WhoIsLeader => heartbeatThenAnswer(sender)
+      case WhoIsLeader(key) => heartbeatThenAnswer(key, sender)
 
       case UpdateView(view) => {
         if (isLeader) {
@@ -122,21 +128,12 @@ object Server {
         }
       }
 
-      case JoinView(serverId, who) => {
+      case JoinView(key,serverId, who) => {
         // possible cases
-        if (this.serverId < serverId) {
-          // only possible if I already own a quorum
-          if (isLeader) {
-            println(s"Received request to join the quorum.")
-          } else {
-            println("impossible!")
-          }
-        } else {
-          numSlaves += 1
-          if (!isLeader && numSlaves >= quorumSize) {
-            isLeader = true
-            coordinator ! LeaderElected(self)
-          }
+        if(isLeaderOfView(key)) {
+          // self is the leader of the view
+          val currentView = myViews(key)
+          myViews(key) = View(currentView.id+1, self, currentView.participants ::: List(who), currentView.state)
         }
         // we always update the view
         myCurrentViewId = 1 //TODO
@@ -147,12 +144,22 @@ object Server {
       //
       // client ops
       case op: Action => {
-        if (isLeader) {
-          myCurrentViewId = 1 //TODO
-          var newOp = op match {
-            case Get(key) => { Read(getOperationId(), key) }
-            case Put(key, value) => { Write(getOperationId(), key, value) }
+        myCurrentViewId = 1 //TODO
+        var newOp = op match {
+          case Get(key) => { Read(getOperationId(), key) }
+          case Put(key, value) => { Write(getOperationId(), key, value) }
+        }
+        // check if the server has the necessary view
+        myViews(key) match {
+          case Some(View(v)) => {
+            
           }
+          case None => {
+
+          }
+        }
+        
+        if (isLeaderOfView(key)) {
           currentView = View(myCurrentViewId, currentView.leader, currentView.participants, currentView.state ::: List(newOp))
           implicit val timeout = Timeout(MAX_ELECTION_TIME)
           var clt = sender
@@ -175,7 +182,32 @@ object Server {
       case _ => debugLog("[Stage: Responding to Get/Put] Received unknown message.")
     }
 
-    def heartbeatThenAnswer(respondTo: ActorRef) = {
+    def heartbeatThenAnswer(key: String, respondTo: ActorRef) = {
+      val keyView = myViews(key)
+      keyView match {
+        case Some(v) => {
+          if(v.leader == self) {
+            respondTo ! TheLeaderIs(self)
+          }
+          else {
+            // check if the view leader is alive
+            implicit val timeout = Timeout(MAX_HEARTBEAT_TIME)
+            v.leader ? Alive onComplete {
+              case Success(result: Boolean) =>
+                debugLog("Leader is alive: " + result)
+                respondTo ! TheLeaderIs(l)
+              case Success(result) => log("### Something went wrong ### HEARTBEAT: " + result)
+              case Failure(failure) =>
+                debugLog("Failure: " + failure)
+                serversAddresses -= l.path.name
+                electLeaderThenAnswer(respondTo)
+            }
+          }
+        }
+        case None => {
+
+        }
+      }
       actualLeader match {
         case Some(l) =>
           if (l == self)
@@ -190,22 +222,27 @@ object Server {
               case Failure(failure) =>
                 debugLog("Failure: " + failure)
                 serversAddresses -= l.path.name
-                electLeaderThenAnswer(respondTo)
+                electLeaderThenAnswer(key,respondTo)
             }
           }
         case None =>
-          electLeaderThenAnswer(respondTo)
+          electLeaderThenAnswer(key,respondTo)
       }
     }
 
-    def electLeaderThenAnswer(sender: ActorRef) = {
+    def electLeaderThenAnswer(key: String, sender: ActorRef) = {
       implicit val timeout = Timeout(MAX_ELECTION_TIME)
       paxos ? Start(self) onComplete {
         case Success(result: ActorRef) =>
           log("Election: " + result.path.name)
-          actualLeader = Some(result)
-          isLeader = self == result
-          currentView = View(1, result, currentView.participants ::: otherServers.toList, currentView.state)
+          myViews(key) = 
+          if(isLeader) {
+            myViews(key) = View(1, result, List(), currentView.state) //TODO VIEW ID
+          }
+          else {
+            result ! JoinView(key, serverId, self)
+          }
+
           if (alzheimer) //TODO CAREFULL
             actualLeader = None
           sender ! TheLeaderIs(result)

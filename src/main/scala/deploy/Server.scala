@@ -177,9 +177,9 @@ object Server {
 
     def viewSetup() = {
       var tmplist = 0 to (serversAddresses.size - 1)
-      for (p <- 0 to ( replicationDegree - 1)) {
+      for (p <- 0 to (replicationDegree - 1)) {
         var key = if (id - p >= 0) tmplist(id - p) else tmplist(tmplist.size + (id - p))
-        var l = (key to (key + replicationDegree )).map(e => e % tmplist.size).map(e => serversAddresses.get("Server" + e)).flatMap(e => e).toList
+        var l = (key to (key + replicationDegree)).map(e => e % tmplist.size).filter(e=> e != id).map(e => serversAddresses.get("Server" + e)).flatMap(e => e).toList
         log(l.foldLeft("") { (acc, n) =>
           acc + ", " + n.path.name
         })
@@ -190,28 +190,22 @@ object Server {
       // })
       // viewsmap.foreach(t => t._2  .participants.foreach(e => e ! ServerDetails(t._1, this.id, t._2)))
       context.become(learn(), discardOld = true)
-log("S: "+viewsmap.size)
       viewsmap.foreach(t => paxoslist(t._1) ! Start(t._2))
-
-      // viewsmap.foreach(e=> 
-      //     otherServers.foreach(_ ! ServerDetails(serverId, currentView))
-
     }
+
     var nlearns = new HashMap[Int, Int]()
     def learn(): Receive = {
       case (k: Int, v: View) =>
         log("K: " + k + "L: " + v)
-        var novo = (nlearns.getOrElse(k,0) + 1)
-        nlearns += (k -> novo)
+        nlearns += (k -> (nlearns.getOrElse(k, 0) + 1))
         viewsmap += (k -> v)
-        if (nlearns.getOrElse(k,0) == 2) {
+        if (nlearns.getOrElse(k, 0) == 2) {
           log(viewsmap.foldLeft("") { (acc, n) =>
             acc + "\n" + n
           })
         }
       case a: Any =>
         log(a)
-
     }
 
     def receive(): Receive = {

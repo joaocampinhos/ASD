@@ -37,6 +37,7 @@ object Server {
     var debug = false
 
     // vars and vals
+    var myViews = collection.mutable.Map[String, View]()
     var coordinator: ActorRef = null
     var serverId = id
     var isLeader = false; //highest server ID gets to be the leader

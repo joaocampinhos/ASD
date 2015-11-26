@@ -179,33 +179,36 @@ object Server {
       var tmplist = 0 to (serversAddresses.size - 1)
       for (p <- 0 to (replicationDegree - 1)) {
         var key = if (id - p >= 0) tmplist(id - p) else tmplist(tmplist.size + (id - p))
-        var l = (key to (key + replicationDegree)).map(e => e % tmplist.size).filter(e=> e != id).map(e => serversAddresses.get("Server" + e)).flatMap(e => e).toList
-        log(l.foldLeft("") { (acc, n) =>
-          acc + ", " + n.path.name
-        })
+        var l = (key to (key + replicationDegree)).map(e => e % tmplist.size).filter(e => e != id).map(e => serversAddresses.get("Server" + e)).flatMap(e => e).toList
+        // log(printlist(key + "->", l))
         viewsmap += (key -> new View(1, self, l, List()))
       }
-      // log(viewsmap.foldLeft("") { (acc, n) =>
-      //   acc + "\n" + n
-      // })
-      // viewsmap.foreach(t => t._2  .participants.foreach(e => e ! ServerDetails(t._1, this.id, t._2)))
+      log(viewsmap.foldLeft("") { (acc, n) =>
+        acc + "\n" + "L: " + n._2.leader.path.name + " K: " + printlist(n._1 + "->", n._2.participants)
+      })
       context.become(learn(), discardOld = true)
-      viewsmap.foreach(t => paxoslist(t._1) ! Start(t._2))
+      viewsmap.foreach(t => {
+        log(paxoslist(t._1).path.name)
+        paxoslist(t._1) ! Start(t._2)
+      })
     }
 
-    var nlearns = new HashMap[Int, Int]()
+    var nlearns = 0
     def learn(): Receive = {
       case (k: Int, v: View) =>
-        log("K: " + k + "L: " + v)
-        nlearns += (k -> (nlearns.getOrElse(k, 0) + 1))
+        nlearns += 1
         viewsmap += (k -> v)
-        if (nlearns.getOrElse(k, 0) == 2) {
+        if (nlearns == replicationDegree) {
           log(viewsmap.foldLeft("") { (acc, n) =>
-            acc + "\n" + n
+            acc + "\n" + "L: " + n._2.leader.path.name + " K: " + printlist(n._1 + "->", n._2.participants)
           })
         }
       case a: Any =>
         log(a)
+    }
+
+    def printlist(prefix: String, list: List[ActorRef]): String = {
+      list.foldLeft(prefix) { (acc, n) => acc + ", " + n.path.name }
     }
 
     def receive(): Receive = {

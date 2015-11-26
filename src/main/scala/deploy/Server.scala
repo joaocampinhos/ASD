@@ -16,6 +16,7 @@ import views.Views.{ OperationSuccessful, OperationError, Write, Read, UpdateVie
 object Server {
   val MAX_HEARTBEAT_TIME = 2.seconds
   val MAX_ELECTION_TIME = 3.seconds
+  val MAX_EXEC_TIME = 5.seconds
 
   abstract class Action
   case class Get(key: String) extends Action
@@ -153,7 +154,7 @@ object Server {
             case Put(key, value) => { Write(getOperationId(), key, value) }
           }
           currentView = View(myCurrentViewId, currentView.leader, currentView.participants, currentView.state ::: List(newOp))
-          implicit val timeout = Timeout(MAX_ELECTION_TIME)
+          implicit val timeout = Timeout(MAX_EXEC_TIME)
           var clt = sender
           paxosViews ? Start(UpdateView(currentView)) onComplete {
             case Success(UpdateView(result)) =>

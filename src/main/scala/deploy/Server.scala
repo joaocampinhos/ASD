@@ -93,74 +93,74 @@ object Server {
           this.quorumSize = (numServers) / replicationDegree
         }
         viewSetup()
-      // paxos ! ServersConf(map)
-      // electLeaderThenAnswer(sender)
-      // context.unbecome()
-      // coordinator ! Success("Ok " + self.path.name)
-      // log("I'm ready")
-      case UpdateView(keyHash, view) => {
-        if (isLeader(keyHash)) {
-          // println("someone just told a leader to update their view.")
-        } else {
-          //just update the view man
-          viewsmap += (keyHash -> view)
-          // println(s"$self updated its view.")
-          if (currentView(keyHash).state.size > 0 && lastOperationId < currentView(keyHash).state.last.id) {
-            // we have operations to perform
-            // self ! currentView.state.last
-          }
-        }
-      }
-      case JoinView(keyHash, serverId, who) => {
-        // possible cases
-        if (this.serverId < serverId) {
-          // only possible if I already own a quorum
-          if (isLeader(keyHash)) {
-            println(s"Received request to join the quorum.")
-          } else {
-            println("impossible!")
-          }
-        } else {
-          numSlaves += 1
-          if (!isLeader(keyHash) && numSlaves >= quorumSize) {
-            // isLeader = true
-            coordinator ! LeaderElected(self)
-          }
-        }
-        // get new view ID
-        // myCurrentViewId = currentView(keyHash).id + 1
-        if (isLeader(keyHash)) {
-          viewsmap += (keyHash -> View(currentView(keyHash).id, self, currentView(keyHash).participants ::: List(who), currentView(keyHash).state))
-          // viewsmap += (keyHash -> View(currentView(keyHash).id, self, currentView(keyHash).participants, currentView(keyHash).state))
-          println(s"${who.path.name} joined view of ${self.path.name}. Current leader is ${currentView(keyHash).leader.path.name}")
-        } else {
-          // viewsmap += (keyHash -> View(currentView(keyHash).id, currentView(keyHash).leader, currentView(keyHash).participants, currentView(keyHash).state))
-          viewsmap += (keyHash -> View(currentView(keyHash).id, currentView(keyHash).leader, currentView(keyHash).participants ::: List(who), currentView(keyHash).state))
-        }
-        currentView(keyHash).participants.foreach(_ ! UpdateView(keyHash, currentView(keyHash))) // update view of all participants
-      }
-      case ServerDetails(keyHash, serverId, view) => {
-        if (isLeader(keyHash)) {
-          // quorum has already been formed by self, send details to sender
-          sender ! ServerDetails(keyHash, this.serverId, currentView(keyHash))
-        } else if (!isLeader(keyHash) && currentView(keyHash).participants.size >= quorumSize) {
-          // self is already in a quorum, reply with the current view
-          sender ! ServerDetails(keyHash, this.serverId, currentView(keyHash))
-          println(s"${self.path.name} refused to join another view because it already is in a quorum.")
-        } else if (!isLeader(keyHash) && currentView(keyHash).participants.size < quorumSize && view.participants.size < quorumSize) {
-          // no quorum is known yet, decide using the process ID
-          if (this.serverId > serverId) {
-            sender ! ServerDetails(keyHash, this.serverId, currentView(keyHash))
-          } else {
-            view.leader ! JoinView(keyHash, this.serverId, self)
-          }
-        } else if (view.participants.size >= quorumSize) {
-          // someone else already got a quorum, I'm going to join them
-          view.leader ! JoinView(keyHash, this.serverId, self)
-        } else {
-          println("shit.")
-        }
-      }
+      //// paxos ! ServersConf(map)
+      //// electLeaderThenAnswer(sender)
+      //// context.unbecome()
+      //// coordinator ! Success("Ok " + self.path.name)
+      //// log("I'm ready")
+      //case UpdateView(keyHash, view) => {
+      //  if (isLeader(keyHash)) {
+      //    // println("someone just told a leader to update their view.")
+      //  } else {
+      //    //just update the view man
+      //    viewsmap += (keyHash -> view)
+      //    // println(s"$self updated its view.")
+      //    if (currentView(keyHash).state.size > 0 && lastOperationId < currentView(keyHash).state.last.id) {
+      //      // we have operations to perform
+      //      // self ! currentView.state.last
+      //    }
+      //  }
+      //}
+      //case JoinView(keyHash, serverId, who) => {
+      //  // possible cases
+      //  if (this.serverId < serverId) {
+      //    // only possible if I already own a quorum
+      //    if (isLeader(keyHash)) {
+      //      println(s"Received request to join the quorum.")
+      //    } else {
+      //      println("impossible!")
+      //    }
+      //  } else {
+      //    numSlaves += 1
+      //    if (!isLeader(keyHash) && numSlaves >= quorumSize) {
+      //      // isLeader = true
+      //      coordinator ! LeaderElected(self)
+      //    }
+      //  }
+      //  // get new view ID
+      //  // myCurrentViewId = currentView(keyHash).id + 1
+      //  if (isLeader(keyHash)) {
+      //    viewsmap += (keyHash -> View(currentView(keyHash).id, self, currentView(keyHash).participants ::: List(who), currentView(keyHash).state))
+      //    // viewsmap += (keyHash -> View(currentView(keyHash).id, self, currentView(keyHash).participants, currentView(keyHash).state))
+      //    println(s"${who.path.name} joined view of ${self.path.name}. Current leader is ${currentView(keyHash).leader.path.name}")
+      //  } else {
+      //    // viewsmap += (keyHash -> View(currentView(keyHash).id, currentView(keyHash).leader, currentView(keyHash).participants, currentView(keyHash).state))
+      //    viewsmap += (keyHash -> View(currentView(keyHash).id, currentView(keyHash).leader, currentView(keyHash).participants ::: List(who), currentView(keyHash).state))
+      //  }
+      //  currentView(keyHash).participants.foreach(_ ! UpdateView(keyHash, currentView(keyHash))) // update view of all participants
+      //}
+      //case ServerDetails(keyHash, serverId, view) => {
+      //  if (isLeader(keyHash)) {
+      //    // quorum has already been formed by self, send details to sender
+      //    sender ! ServerDetails(keyHash, this.serverId, currentView(keyHash))
+      //  } else if (!isLeader(keyHash) && currentView(keyHash).participants.size >= quorumSize) {
+      //    // self is already in a quorum, reply with the current view
+      //    sender ! ServerDetails(keyHash, this.serverId, currentView(keyHash))
+      //    println(s"${self.path.name} refused to join another view because it already is in a quorum.")
+      //  } else if (!isLeader(keyHash) && currentView(keyHash).participants.size < quorumSize && view.participants.size < quorumSize) {
+      //    // no quorum is known yet, decide using the process ID
+      //    if (this.serverId > serverId) {
+      //      sender ! ServerDetails(keyHash, this.serverId, currentView(keyHash))
+      //    } else {
+      //      view.leader ! JoinView(keyHash, this.serverId, self)
+      //    }
+      //  } else if (view.participants.size >= quorumSize) {
+      //    // someone else already got a quorum, I'm going to join them
+      //    view.leader ! JoinView(keyHash, this.serverId, self)
+      //  } else {
+      //    println("shit.")
+      //  }
+      //}
       case _ => debugLog("[Stage: Waiting for servers' address] Received unknown message.")
     }
 
@@ -179,7 +179,7 @@ object Server {
       var tmplist = 0 to (serversAddresses.size - 1)
       for (p <- 0 to (replicationDegree - 1)) {
         var key = if (id - p >= 0) tmplist(id - p) else tmplist(tmplist.size + (id - p))
-        var l = (key to (key + replicationDegree)).map(e => e % tmplist.size).filter(e => e != id).map(e => serversAddresses.get("Server" + e)).flatMap(e => e).toList
+        var l = (key to (key + replicationDegree-1)).map(e => e % tmplist.size).filter(e => e != id).map(e => serversAddresses.get("Server" + e)).flatMap(e => e).toList
         // log(printlist(key + "->", l))
         viewsmap += (key -> new View(1, self, l, List()))
       }
@@ -212,34 +212,37 @@ object Server {
     }
 
     def receive(): Receive = {
-      //case Stop =>
-      //  context.stop(self)
-      //case Alive =>
-      //  debugLog("I'm alive")
-      //  sender ! true
-      //case WhoIsLeader =>
-      //  heartbeatThenAnswer(sender)
-      //case UpdateView(view) => {
-      //  if (isLeader) {
-      //    // println("someone just told a leader to update their view.")
-      //  } else {
-      //    //just update the view man
-      //    currentView = view
-      //    debugLog(s"Replica received view state:${view.state}")
-      //    // println(s"$self updated its view.")
-      //    if (currentView.state.size > 0 && lastOperationId < currentView.state.last.id) {
-      //      val tmpList = (lastOperationId to currentView.state.last.id - 1).map(e => currentView.state(e)).toList
-      //      for (op <- tmpList)
-      //        op match {
-      //          case Read(_, key) =>
-      //            kvStore.get(key)
-      //          case Write(_, key, value) =>
-      //            kvStore += (key -> value)
-      //        }
-      //      lastOperationId = currentView.state.last.id
-      //    }
-      //  }
-      //}
+      case Stop =>
+        context.stop(self)
+      // case Alive =>
+      //   debugLog("I'm alive")
+      //   sender ! true
+      // case WhoIsLeader =>
+      //   heartbeatThenAnswer(sender)
+
+      case UpdateView(keyHash, view) => {
+        if (isLeader(keyHash)) {
+          // println("someone just told a leader to update their view.")
+        } else {
+          //just update the view man
+          viewsmap += (keyHash -> view)
+          // println(s"$self updated its view.")
+          if (currentView(keyHash).state.size > 0 && lastOperationId < currentView(keyHash).state.last.id) {
+            // we have operations to perform
+            // self ! currentView.state.last
+            val tmpList = (lastOperationId to currentView(keyHash).state.last.id - 1).map(e => currentView(keyHash).state(e)).toList
+            for (op <- tmpList)
+              op match {
+                case Read(_, key) =>
+                  kvStore.get(key)
+                case Write(_, key, value) =>
+                  kvStore += (key -> value)
+              }
+            lastOperationId = currentView.state.last.id
+
+          }
+        }
+      }
 
       //case JoinView(serverId, who) => {
       //  // possible cases

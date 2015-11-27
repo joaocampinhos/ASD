@@ -15,8 +15,8 @@ import views.Views.{ OperationSuccessful, OperationError, Write, Read, UpdateVie
 
 object Server {
   val MAX_HEARTBEAT_TIME = 1.seconds
-  val MAX_ELECTION_TIME = 2.seconds
-  val MAX_EXEC_TIME = 3.seconds
+  val MAX_ELECTION_TIME = 1.seconds
+  val MAX_EXEC_TIME = 2.seconds
 
   trait Action {
     def hash: Int

@@ -15,7 +15,7 @@ import util.Failure
 import util.Success
 import views.Views.{ View, UpdateView }
 
-class PaxosBase() extends Actor {
+class Paxos() extends Actor {
   import context.dispatcher
 
   var count: Int = 0
@@ -36,7 +36,7 @@ class PaxosBase() extends Actor {
   }
 }
 
-class ViewsPaxos(id: Int, totalServers: Int) extends PaxosBase {
+class ViewPaxos(id: Int, totalServers: Int) extends Paxos {
   import context.dispatcher
   setupRoles()
 
@@ -100,7 +100,7 @@ class ViewsPaxos(id: Int, totalServers: Int) extends PaxosBase {
   }
 }
 
-class PaxosActor(id: Int, totalServers: Int) extends PaxosBase {
+class ElectionPaxos(id: Int, totalServers: Int) extends Paxos {
   import context.dispatcher
   setupRoles()
   override def setupRoles() = {

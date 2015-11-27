@@ -17,9 +17,9 @@ import deploy.Server.{ Get, Put, Action, WhoIsLeader, TheLeaderIs, Alive }
 import stats.Messages.{ ClientStart, ClientEnd, StatOp }
 
 object Client {
-  val DO_OP_TIME = 2.seconds
-  val ANSWER_TIME = 2.seconds
-  val LEADER_ANSWER_TIME = 2.seconds
+  val DO_OP_TIME = 0.seconds
+  val ANSWER_TIME = 3.seconds
+  val LEADER_ANSWER_TIME = 3.seconds
   case class ClientConf(readsRate: Int, maxOpsNumber: Int, zipfNumber: Int)
   case object DoRequest
 
@@ -31,7 +31,7 @@ object Client {
     )
   }
 
-  case class ClientActor(serversURI: HashMap[String, ActorRef], clientConf: ClientConf, stat: ActorRef) extends Actor {
+  case class ClientActor(serversURI: HashMap[String, ActorRef], clientConf: ClientConf, stat: ActorRef,replicationDegree: Int) extends Actor {
     import context.dispatcher
 
     val log = Logging(context.system, this)
@@ -39,7 +39,8 @@ object Client {
     val zipf = new ZipfDistribution(clientConf.zipfNumber, 1)
     val rnd = ThreadLocalRandom.current
     var serverLeader: Option[ActorRef] = None
-    var leaderQuorum = new MutableList[ActorRef]()
+    var idxMap = HashMap[Int, ActorRef]()
+    var leaderQuorum = new MutableList[Option[ActorRef]]()
     var opsCounter = 0
     var alzheimer = false
     var debug = false
@@ -48,7 +49,7 @@ object Client {
     log("I'm ready")
     stat ! ClientStart(self.path)
 
-    scheduler.scheduleOnce(DO_OP_TIME, self, DoRequest)
+    scheduler.scheduleOnce(2.seconds, self, DoRequest)
 
     def log(text: Any) = {
       println(Console.MAGENTA + "[" + self.path.name + "] " + Console.YELLOW + text + Console.WHITE)
@@ -65,26 +66,23 @@ object Client {
     def receive = {
       case DoRequest =>
         var op = createOperation()
-        op = Get(0,"ola")
-        serversURI.values.foreach(e=> e ! op)
-        // op match {
-        //   case Get(_,_) => stat ! StatOp(self.path, "get")
-        //   case Put(_,_, _) => stat ! StatOp(self.path, "put")
-        // }
-        // sendToLeader(op, false)
+        op match {
+          case Get(_, _) => stat ! StatOp(self.path, "get")
+          case Put(_, _, _) => stat ! StatOp(self.path, "put")
+        }
+        sendToLeader(op, false)
       case a: Any => debugLog("[Stage:Getting Leader Address] Received unknown message. " + a)
     }
-
     def waitingForLeaderInfo(op: Action): Receive = {
       case Timeout =>
         debugLog("Timeout")
         findLeader(op, true)
       case TheLeaderIs(l) => {
         leaderQuorum += l
-        if (leaderQuorum.size > serversURI.size / 2) {
-          val leaderAddress = leaderQuorum.groupBy(l => l).map(t => (t._1, t._2.length)).toList.sortBy(_._2).max
-          if (leaderAddress._2 > serversURI.size / 2) {
-            serverLeader = Some(leaderAddress._1)
+        if (leaderQuorum.flatMap(e => e).size > replicationDegree / 2) {
+          val leaderAddress = leaderQuorum.flatMap(e => e).groupBy(l => l).map(t => (t._1, t._2.length)).toList.sortBy(_._2).max
+          if (leaderAddress._2 > replicationDegree / 2) {
+            idxMap += (op.hash -> leaderAddress._1)
             sendToLeader(op, true)
           } else {
             debugLog("Retry")
@@ -97,39 +95,35 @@ object Client {
 
     def sendToLeader(op: Action, consecutiveError: Boolean) = {
       context.unbecome()
-      serverLeader match {
-        case Some(l) => {
-          debugLog("leader is " + l)
+      idxMap.get(op.hash) match {
+        case Some(actor) =>
+          debugLog("hash -> " + actor)
           implicit val timeout = Timeout(LEADER_ANSWER_TIME)
-          l ? op onComplete {
+          actor ? op onComplete {
             case Success(result) =>
-              log(result + " => OP:" + op + " on " + l.path.name)
-              op match {
-                case Get(_,_) => stat ! StatOp(self.path, "getsuc")
-                case Put(_, _,_) => stat ! StatOp(self.path, "putsuc")
-              }
+              log(result + " => OP:" + op + " on " + actor.path.name)
               resetRole()
+              op match {
+                case Get(_, _) => stat ! StatOp(self.path, "getsuc")
+                case Put(_, _, _) => stat ! StatOp(self.path, "putsuc")
+              }
             case Failure(failure) =>
-              log("OP:" + op + " failed: " + failure + " on " + l.path.name)
-              serversURI -= l.path.name
-              debugLog("Total servers " + serversURI.size)
-              serverLeader = None
-              findLeader(op, consecutiveError)
+              log("OP:" + op + " failed: " + failure + " on " + actor.path.name)
+              idxMap -= op.hash
+              findLeader(op, consecutiveError) //TODO
           }
-        }
         case None =>
-          findLeader(op, consecutiveError)
+          debugLog("I have no record for such key:" + op.hash)
+          findLeader(op, consecutiveError) //TODO
       }
-      if (alzheimer)
-        serverLeader = None //REMOVE ON FINAL STAGE
     }
 
     def findLeader(op: Action, consecutiveError: Boolean) = {
-      debugLog("Finding leader")
-      leaderQuorum = new MutableList[ActorRef]()
-      serversURI.values.foreach(e => e ! WhoIsLeader)
+      debugLog("Finding leader for key: " + op.hash)
+      leaderQuorum = new MutableList[Option[ActorRef]]()
+      serversURI.values.foreach(e => e ! WhoIsLeader(op.hash))
       context.become(waitingForLeaderInfo(op), discardOld = consecutiveError)
-      cancelOpTimeout()
+      setNewFindTimeout()
     }
 
     def createOperation(): Action = {
@@ -145,10 +139,8 @@ object Client {
       op
     }
 
-    def calcHash(str: String) :Int = {
-        str.hashCode() % serversURI.size
-        serverLeader= serversURI.get("Server0")
-        0
+    def calcHash(str: String): Int = {
+      str.hashCode() % serversURI.size
     }
 
     def resetRole() = {
@@ -158,10 +150,16 @@ object Client {
           cancelOpTimeout()
           context.stop(self) // Client has executed all operations
         case _ => {
+          idxMap = HashMap[Int,ActorRef]()
           context.unbecome()
           scheduler.scheduleOnce(DO_OP_TIME, self, DoRequest)
         }
       }
+    }
+
+    def setNewFindTimeout() = {
+      cancelOpTimeout()
+      timeoutScheduler = Some(scheduler.scheduleOnce(ANSWER_TIME, self, Timeout))
     }
 
     def cancelOpTimeout() = {
@@ -169,7 +167,6 @@ object Client {
         case Some(t) => t.cancel()
         case None => Unit
       }
-      timeoutScheduler = Some(scheduler.scheduleOnce(ANSWER_TIME, self, Timeout))
     }
   }
 }

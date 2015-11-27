@@ -13,22 +13,21 @@ import util.{ Failure, Success }
 import stats.StatActor
 import deploy.Server.{ ServerActor, ServersConf }
 import deploy.Client.ClientActor
-import paxos.{ PaxosActor, ViewsPaxos }
+import paxos.{ ElectionPaxos, ViewPaxos }
 
 object Deployer {
   def main(args: Array[String]) {
     val remoteSettings = args.toList
     val config = ConfigFactory.load("deployer")
+    var replicationDegree = config.getInt("replicationDegree")
     val system = ActorSystem(config.getString("deployer.name"), config)
     var totalServers = config.getInt("totalServers")
-    var paxos = system.actorOf(Props(new PaxosActor(-4, totalServers)), name = "Paxos")
-    var paxosV = system.actorOf(Props(new ViewsPaxos(-4, 3)), name = "PaxosViews")
-    var paxoslist = (0 to totalServers-1).map(e => system.actorOf(Props(new PaxosActor(e, 3)), name = "Paxos" + (e))).toList
-    var paxosVlist = (0 to totalServers-1).map(e => system.actorOf(Props(new ViewsPaxos(e, 3)), name = "PaxosV_" + (e))).toList
+    var paxoslist = (0 to totalServers - 1).map(e => system.actorOf(Props(new ElectionPaxos(e, 3)), name = "Paxos" + (e))).toList
+    var paxosVlist = (0 to totalServers - 1).map(e => system.actorOf(Props(new ViewPaxos(e, 3)), name = "PaxosV_" + (e))).toList
     var stat = system.actorOf(Props(new StatActor()), name = "stat")
     var serversMap = HashMap[String, ActorRef]()
     var clientsMap = HashMap[String, ActorRef]()
-    var debug = false
+    var debug = true
 
     stat ! "start"
     deployServers(0 to totalServers - 1)
@@ -41,6 +40,7 @@ object Deployer {
         case Failure(failure) => debugLog(failure)
       }
     })
+
     deployClients(0 to config.getInt("totalClients") - 1)
     log("Deployment was successful.")
 
@@ -48,12 +48,12 @@ object Deployer {
     def debugLog(text: Any) = { if (debug) println(Console.RED + "[Deployer] " + Console.GREEN + text + Console.WHITE) }
 
     def createServer(remotePath: String, serverIdx: Int): ActorRef = {
-      system.actorOf(Props(classOf[ServerActor], serverIdx, paxos, paxosV, stat, paxoslist, paxosVlist)
+      system.actorOf(Props(classOf[ServerActor], serverIdx, stat, paxoslist, paxosVlist,replicationDegree)
         .withDeploy(Deploy(scope = RemoteScope(AddressFromURIString(remotePath)))), "Server" + serverIdx)
     }
 
     def createClient(remotePath: String, clientIdx: Int): ActorRef = {
-      system.actorOf(Props(classOf[ClientActor], serversMap, Client.parseClientConf(config), stat)
+      system.actorOf(Props(classOf[ClientActor], serversMap, Client.parseClientConf(config), stat,replicationDegree)
         .withDeploy(Deploy(scope = RemoteScope(AddressFromURIString(remotePath)))), "Client" + clientIdx)
     }
 

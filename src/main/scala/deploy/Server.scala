@@ -10,7 +10,7 @@ import concurrent.forkjoin.ThreadLocalRandom
 import concurrent.{ Await, ExecutionContext, Future }
 import util.{ Failure, Success }
 import paxos.Start
-import stats.Messages.{ ServerStart, ServerEnd }
+import stats.Stat.Messages.{ ServerStart, ServerEnd }
 import views.Views.{ OperationSuccessful, OperationError, Write, Read, UpdateView, View, JoinView, LeaderElected }
 
 object Server {

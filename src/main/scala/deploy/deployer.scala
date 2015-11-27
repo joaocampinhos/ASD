@@ -10,7 +10,7 @@ import collection.mutable.{ HashMap, MutableList }
 import concurrent.Await
 import concurrent.duration._
 import util.{ Failure, Success }
-import stats.StatActor
+import stats.Stat.StatActor
 import deploy.Server.{ ServerActor, ServersConf ,Alive}
 import deploy.Client.{ClientActor,IsAlive}
 import paxos.{ ElectionPaxos, ViewPaxos }

@@ -14,7 +14,7 @@ import concurrent.forkjoin.ThreadLocalRandom
 import concurrent.Await
 import util.{ Failure, Success }
 import deploy.Server.{ Get, Put, Action, WhoIsLeader, TheLeaderIs, Alive }
-import deploy.Stat.Messages.{ ClientStart, ClientEnd, StatOp, Lat }
+import stats.Stat.Messages.{ ClientStart, ClientEnd, StatOp, Lat }
 import akka.pattern.ask
 import akka.util.Timeout
 import scala.concurrent.duration._

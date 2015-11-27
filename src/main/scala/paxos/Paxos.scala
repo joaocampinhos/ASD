@@ -41,7 +41,6 @@ class ViewPaxos(id: Int, totalServers: Int) extends Paxos {
   setupRoles()
   debugLog("Ready")
   override def setupRoles() = {
-    proposers += context.actorOf(Props(new Proposer), name = "proposer")
     for (s <- 1 to totalServers) {
       acceptors += context.actorOf(Props(new Acceptor), name = "acceptor" + s)
     }
@@ -60,8 +59,7 @@ class ViewPaxos(id: Int, totalServers: Int) extends Paxos {
       debugLog("Started paxos for a view")
       toRespond = new MutableList() ++ v.participants
       toRespond += sender
-      proposers(0) ! Operation(UpdateView(k, v))
-      proposers(0) ! Go
+      acceptors.foreach(e => e ! Accept(Proposal(1,UpdateView(k, v))))
 
     case Learn(v) =>
       count = count + 1

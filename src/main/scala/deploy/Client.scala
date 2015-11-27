@@ -51,10 +51,10 @@ object Client {
     var debug = false
     var timeoutScheduler: Option[Cancellable] = None
 
-    var start:Long = 0
-    var end:Long = 0
-    var sum:Long = 0
-    var op1:Boolean = true
+    var start: Long = 0
+    var end: Long = 0
+    var sum: Long = 0
+    var op1: Boolean = true
 
     log("I'm ready")
 

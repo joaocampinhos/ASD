@@ -14,9 +14,9 @@ import stats.Stat.Messages.{ ServerStart, ServerEnd }
 import views.Views.{ OperationSuccessful, OperationError, Write, Read, UpdateView, View, JoinView, LeaderElected }
 
 object Server {
-  val MAX_HEARTBEAT_TIME = 1.seconds
-  val MAX_ELECTION_TIME = 2.seconds
-  val MAX_EXEC_TIME = 3.seconds
+  val MAX_HEARTBEAT_TIME = 500.milliseconds
+  val MAX_ELECTION_TIME = 500.milliseconds
+  val MAX_EXEC_TIME = 1.seconds
 
   trait Action {
     def hash: Int

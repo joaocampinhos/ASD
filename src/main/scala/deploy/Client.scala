@@ -22,8 +22,8 @@ import paxos._
 
 object Client {
   val DO_OP_TIME = 0.seconds
-  val ANSWER_TIME = 3.seconds
-  val LEADER_ANSWER_TIME = 3.seconds
+  val ANSWER_TIME = 1.seconds
+  val LEADER_ANSWER_TIME = 1.seconds
   case class ClientConf(readsRate: Int, maxOpsNumber: Int, zipfNumber: Int)
   case object DoRequest
   case object IsAlive
@@ -36,7 +36,7 @@ object Client {
     )
   }
 
-  case class ClientActor(serversURI: HashMap[String, ActorRef], clientConf: ClientConf, stat: ActorRef,replicationDegree: Int) extends Actor {
+  case class ClientActor(serversURI: HashMap[String, ActorRef], clientConf: ClientConf, stat: ActorRef, replicationDegree: Int) extends Actor {
     import context.dispatcher
 
     val log = Logging(context.system, this)
@@ -71,7 +71,7 @@ object Client {
     }
 
     def receive = {
-      case IsAlive => sender ! Alive 
+      case IsAlive => sender ! Alive
       case DoRequest =>
         if (op1) {
           op1 = false
@@ -122,7 +122,7 @@ object Client {
               end = java.lang.System.currentTimeMillis()
               sum += (end - start)
               log("OP:" + op + " failed: " + failure + " on " + actor.path.name)
-              debugLog("Total servers " +serversURI.size)
+              debugLog("Total servers " + serversURI.size)
               serverLeader = None
               findLeader(op, consecutiveError)
           }
@@ -167,7 +167,8 @@ object Client {
           //Tempo total
           context.stop(self) // Client has executed all operations
         case _ => {
-          idxMap = HashMap[Int,ActorRef]()
+          if (alzheimer)
+            idxMap = HashMap[Int, ActorRef]()
           context.unbecome()
           scheduler.scheduleOnce(DO_OP_TIME, self, DoRequest)
         }

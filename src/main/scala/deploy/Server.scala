@@ -12,6 +12,7 @@ import util.{ Failure, Success }
 import paxos.Start
 import stats.Stat.Messages.{ ServerStart, ServerEnd }
 import views.Views.{ OperationSuccessful, OperationError, Write, Read, UpdateView, View, JoinView, LeaderElected }
+import deploy.Deployer.Ready
 
 object Server {
   val MAX_HEARTBEAT_TIME = 500.milliseconds
@@ -59,7 +60,7 @@ object Server {
     def waitForData(): Receive = {
       case Stop =>
         context.stop(self)
-      case ServersConf(map,electionPaxosList,viewsPaxosList) =>
+      case ServersConf(map, electionPaxosList, viewsPaxosList) =>
         serversAddresses = map
         paxoslist = electionPaxosList
         paxosVList = viewsPaxosList
@@ -91,8 +92,9 @@ object Server {
         nlearns += 1
         viewsmap += (k -> v)
         if (nlearns == replicationDegree) {
+          nlearns = 0
           log(viewMapToShortString())
-          coordinator ! Alive
+          coordinator ! Ready
           context.unbecome()
         }
       case a: Any => log(a)

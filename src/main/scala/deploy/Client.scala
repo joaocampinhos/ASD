@@ -13,7 +13,8 @@ import concurrent.duration._
 import concurrent.forkjoin.ThreadLocalRandom
 import concurrent.Await
 import util.{ Failure, Success }
-import deploy.Server.{ Get, Put, Action, WhoIsLeader, TheLeaderIs, Alive }
+import deploy.Server.{ Get, Put, Action, WhoIsLeader, TheLeaderIs}
+import deploy.Deployer.{ IsReady,Ready}
 import stats.Stat.Messages.{ ClientStart, ClientEnd, StatOp, Lat }
 import akka.pattern.ask
 import akka.util.Timeout
@@ -71,7 +72,7 @@ object Client {
     }
 
     def receive = {
-      case IsAlive => sender ! Alive
+      case IsReady => sender ! Ready
       case DoRequest =>
         if (op1) {
           op1 = false

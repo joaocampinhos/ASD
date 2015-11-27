@@ -105,10 +105,10 @@ object Stat {
         dump()
       case Messages.ClientStart(path) =>
         stat += (path -> new State(java.lang.System.currentTimeMillis(), false))
-        log("Client start => " + path)
+        debugLog("Client start => " + path)
       case Messages.ClientEnd(path) =>
         stat(path).end = java.lang.System.currentTimeMillis()
-        log("Client end => " + path)
+        debugLog("Client end => " + path)
       case Messages.ServerStart(path) =>
         stat += (path -> new State(java.lang.System.currentTimeMillis(), true))
         debugLog("Server start => " + path)
@@ -130,11 +130,13 @@ object Stat {
       val totalServers = config.getInt("totalServers")
       val totalClients = config.getInt("totalClients")
       val perReads = config.getInt("ratioOfReads")
+      val totops = config.getInt("maxOpsPerClient")
       val writer = new PrintWriter(new File(f"s$totalServers%dc$totalClients%dr$perReads%d.txt"))
       writer.write("----------------------------\n")
       writer.write(f"Servidores   : $totalServers%d\n")
       writer.write(f"Clientes     : $totalClients%d\n")
       writer.write(f"%% Reads      : $perReads%d\n")
+      writer.write(f"# Ops        : $totops%d\n")
       writer.write("----------------------------\n")
       var throughput = 0
       var time:Long = 0
@@ -149,12 +151,12 @@ object Stat {
             throughput += (ops/(time.toFloat/1000)).toInt
             //latencia media de cada pedido (ms)
             latency += x._2.lattotal.toFloat/ops
-            println(x._1)
-            println("time: " + time)
-            println("ops: " + ops)
-            println("latencia: " + latency)
-            println("throughput: " + (ops/(time.toFloat/1000)).toInt)
-            println("----------------------------------")
+            //println(x._1)
+            //println("time: " + time)
+            //println("ops: " + ops)
+            //println("latencia: " + latency)
+            //println("throughput: " + (ops/(time.toFloat/1000)).toInt)
+            //println("----------------------------------")
           }
       }
       writer.write(f"Tempo medio  : ${time / totalClients}%d ms\n")

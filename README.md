@@ -14,3 +14,11 @@ Run:
  sbt "run-main deploy.Deployer $remote0 $remote1 $remote2"
 ```
 Attention: Each arg must match a name in the file base.conf
+
+# Run le stats
+
+Run:
+```bash
+ sbt "run-main deploy.Control status"
+```
+

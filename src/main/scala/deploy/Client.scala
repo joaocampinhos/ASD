@@ -14,7 +14,11 @@ import concurrent.forkjoin.ThreadLocalRandom
 import concurrent.Await
 import util.{ Failure, Success }
 import deploy.Server.{ Get, Put, Action, WhoIsLeader, TheLeaderIs, Alive }
-import stats.Messages.{ ClientStart, ClientEnd, StatOp }
+import deploy.Stat.Messages.{ ClientStart, ClientEnd, StatOp, Lat }
+import akka.pattern.ask
+import akka.util.Timeout
+import scala.concurrent.duration._
+import paxos._
 
 object Client {
   val DO_OP_TIME = 0.seconds
@@ -47,6 +51,10 @@ object Client {
     var debug = false
     var timeoutScheduler: Option[Cancellable] = None
 
+    var start:Long = 0
+    var end:Long = 0
+    var sum:Long = 0
+
     log("I'm ready")
     stat ! ClientStart(self.path)
 
@@ -70,6 +78,7 @@ object Client {
           case Get(_, _) => stat ! StatOp(self.path, "get")
           case Put(_, _, _) => stat ! StatOp(self.path, "put")
         }
+        start = java.lang.System.currentTimeMillis()
         sendToLeader(op, false)
       case a: Any => debugLog("[Stage:Getting Leader Address] Received unknown message. " + a)
     }
@@ -101,16 +110,17 @@ object Client {
           implicit val timeout = Timeout(LEADER_ANSWER_TIME)
           actor ? op onComplete {
             case Success(result) =>
+              end = java.lang.System.currentTimeMillis()
+              sum += (end - start)
               log(result + " => OP:" + op + " on " + actor.path.name)
               resetRole()
-              op match {
-                case Get(_, _) => stat ! StatOp(self.path, "getsuc")
-                case Put(_, _, _) => stat ! StatOp(self.path, "putsuc")
-              }
             case Failure(failure) =>
+              end = java.lang.System.currentTimeMillis()
+              sum += (end - start)
               log("OP:" + op + " failed: " + failure + " on " + actor.path.name)
-              idxMap -= op.hash
-              findLeader(op, consecutiveError) //TODO
+              debugLog("Total servers " +serversURI.size)
+              serverLeader = None
+              findLeader(op, consecutiveError)
           }
         case None =>
           debugLog("I have no record for such key:" + op.hash)
@@ -146,8 +156,10 @@ object Client {
     def resetRole() = {
       opsCounter match {
         case clientConf.maxOpsNumber =>
+          stat ! Lat(self.path, sum.toInt)
           log("Executed all ops")
           cancelOpTimeout()
+          //Tempo total
           context.stop(self) // Client has executed all operations
         case _ => {
           idxMap = HashMap[Int,ActorRef]()

@@ -22,6 +22,7 @@ object Client {
   val LEADER_ANSWER_TIME = 3.seconds
   case class ClientConf(readsRate: Int, maxOpsNumber: Int, zipfNumber: Int)
   case object DoRequest
+  case object IsAlive
 
   def parseClientConf(config: Config): ClientConf = {
     new ClientConf(

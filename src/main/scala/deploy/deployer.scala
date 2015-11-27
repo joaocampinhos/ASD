@@ -1,6 +1,6 @@
 package deploy
 
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{ ConfigFactory, Config }
 import akka.actor.{ ActorSystem, Props, Actor, ActorRef, Deploy, AddressFromURIString }
 import akka.remote.RemoteScope
 import akka.event.Logging
@@ -11,42 +11,71 @@ import concurrent.Await
 import concurrent.duration._
 import util.{ Failure, Success }
 import stats.StatActor
-import deploy.Server.{ ServerActor, ServersConf }
-import deploy.Client.ClientActor
+import deploy.Server.{ ServerActor, ServersConf ,Alive}
+import deploy.Client.{ClientActor,IsAlive}
 import paxos.{ ElectionPaxos, ViewPaxos }
 
 object Deployer {
+  case object Start
   def main(args: Array[String]) {
     val remoteSettings = args.toList
     val config = ConfigFactory.load("deployer")
-    var replicationDegree = config.getInt("replicationDegree")
     val system = ActorSystem(config.getString("deployer.name"), config)
+    val actor = system.actorOf(Props(new DeployerActor(remoteSettings, config)), name = "D")
+    actor ! Start
+  }
+  case class DeployerActor(remoteSettings: List[String], config: Config) extends Actor {
+    import context.system
+
     var totalServers = config.getInt("totalServers")
+    var totalClients = config.getInt("totalClients")
+    var replicationDegree = config.getInt("replicationDegree")
     var stat = system.actorOf(Props(new StatActor()), name = "stat")
     var serversMap = HashMap[String, ActorRef]()
     var clientsMap = HashMap[String, ActorRef]()
     var debug = false
     var paxoslist = MutableList[ActorRef]()
     var paxosVlist = MutableList[ActorRef]()
-
-    stat ! "start"
-    deployPaxosActors(0 to totalServers - 1)
-    deployServers(0 to totalServers - 1)
-    serversMap.values.map(e => {
-      import scala.concurrent.ExecutionContext.Implicits.global
-      implicit val timeout = Timeout(5 seconds)
-      val future = e ? ServersConf(serversMap, List() ++ paxoslist, List() ++ paxosVlist)
-      future onComplete {
-        case Success(result) => debugLog(result)
-        case Failure(failure) => debugLog(failure)
-      }
-    })
-
-     deployClients(0 to config.getInt("totalClients") - 1)
-    log("Deployment was successful.")
+    var aliveCounter = 0
 
     def log(text: Any) = { println(Console.RED + "[Deployer] " + Console.GREEN + text + Console.WHITE) }
     def debugLog(text: Any) = { if (debug) println(Console.RED + "[Deployer] " + Console.GREEN + text + Console.WHITE) }
+
+    def receive(): Receive = {
+      case Start => init()
+      case _ => Unit
+    }
+    def waitForServerAndPaxos(): Receive = {
+      case Alive =>
+        aliveCounter += 1
+        if (aliveCounter == totalServers) {
+          deployClients(0 to (totalClients - 1))
+          aliveCounter = 0
+          context.become(waitForClients(), discardOld = true)
+          clientsMap.values.foreach(e => e ! IsAlive)
+        }
+      case _ => Unit
+    }
+    def waitForClients(): Receive = {
+      case Alive =>
+        aliveCounter += 1
+        if (aliveCounter == totalClients) {
+          aliveCounter = 0
+          context.unbecome()
+          log("Deployment was successful.")
+        }
+      case _ => Unit
+    }
+
+    def init() = {
+      stat ! "start"
+      deployPaxosActors(0 to totalServers - 1)
+      deployServers(0 to totalServers - 1)
+      serversMap.values.map(e => {
+        e ! ServersConf(serversMap, List() ++ paxoslist, List() ++ paxosVlist)
+      })
+      context.become(waitForServerAndPaxos(), discardOld = false)
+    }
 
     def createServer(remotePath: String, serverIdx: Int): ActorRef = {
       system.actorOf(Props(classOf[ServerActor], serverIdx, stat, replicationDegree)
@@ -89,4 +118,5 @@ object Deployer {
       remoteSettings(idx % remoteSettings.size) + ".path"
     }
   }
+
 }

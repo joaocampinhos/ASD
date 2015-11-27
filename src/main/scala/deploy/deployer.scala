@@ -43,7 +43,7 @@ object Deployer {
 
     def receive(): Receive = {
       case Start => init()
-      case _ => Unit
+      case a: Any => log("[Init] Received unknown message. " + a)
     }
     def waitForServerAndPaxos(): Receive = {
       case Alive =>
@@ -54,17 +54,18 @@ object Deployer {
           context.become(waitForClients(), discardOld = true)
           clientsMap.values.foreach(e => e ! IsAlive)
         }
-      case _ => Unit
+      case a: Any => log("[Waiting for servers and paxos] Received unknown message. " + a)
     }
     def waitForClients(): Receive = {
       case Alive =>
         aliveCounter += 1
         if (aliveCounter == totalClients) {
           aliveCounter = 0
+          clientsMap.values.foreach(e => e ! Client.DoRequest)
           context.unbecome()
-          log("Deployment was successful.")
+          log("Deployment was successful.\nDon't shut down! Stats actor is running in this actor system ")
         }
-      case _ => Unit
+      case a: Any => log("[Waiting for clients] Received unknown message. " + a)
     }
 
     def init() = {

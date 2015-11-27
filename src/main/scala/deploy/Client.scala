@@ -50,8 +50,6 @@ object Client {
     log("I'm ready")
     stat ! ClientStart(self.path)
 
-    scheduler.scheduleOnce(2.seconds, self, DoRequest)
-
     def log(text: Any) = {
       println(Console.MAGENTA + "[" + self.path.name + "] " + Console.YELLOW + text + Console.WHITE)
     }
@@ -65,6 +63,7 @@ object Client {
     }
 
     def receive = {
+      case IsAlive => sender ! Alive 
       case DoRequest =>
         var op = createOperation()
         op match {

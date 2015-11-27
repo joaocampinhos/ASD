@@ -18,20 +18,19 @@ object Server {
   val MAX_ELECTION_TIME = 3.seconds
   val MAX_EXEC_TIME = 5.seconds
 
-  abstract class Action
-  case class Get(key: String) extends Action
-  case class Put(key: String, value: String) extends Action
+  trait Action {
+    def hash: Int
+  }
+  case class Get(hash: Int, key: String) extends Action
+  case class Put(hash: Int, key: String, value: String) extends Action
   case object SearchTimeout
   case object Stop
   case object WhoIsLeader
   case object Alive
   case class TheLeaderIs(l: ActorRef)
-  case class ServerDetails(keyHash: Int, id: Int, view: View)
-  case class JoinView(keyHash: Int, id: Int, who: ActorRef)
-  case class UpdateView(keyHash: Int, view: View)
   case class ServersConf(servers: collection.mutable.HashMap[String, ActorRef])
 
-  case class ServerActor(id: Int, paxos: ActorRef, paxosViews: ActorRef, stat: ActorRef, paxoslist: List[ActorRef]) extends Actor {
+  case class ServerActor(id: Int, paxos: ActorRef, paxosViews: ActorRef, stat: ActorRef, paxoslist: List[ActorRef], paxosVList: List[ActorRef]) extends Actor {
     import context.dispatcher
     var replicationDegree = 3
     val log = Logging(context.system, this)
@@ -93,24 +92,6 @@ object Server {
           this.quorumSize = (numServers) / replicationDegree
         }
         viewSetup()
-      //// paxos ! ServersConf(map)
-      //// electLeaderThenAnswer(sender)
-      //// context.unbecome()
-      //// coordinator ! Success("Ok " + self.path.name)
-      //// log("I'm ready")
-      //case UpdateView(keyHash, view) => {
-      //  if (isLeader(keyHash)) {
-      //    // println("someone just told a leader to update their view.")
-      //  } else {
-      //    //just update the view man
-      //    viewsmap += (keyHash -> view)
-      //    // println(s"$self updated its view.")
-      //    if (currentView(keyHash).state.size > 0 && lastOperationId < currentView(keyHash).state.last.id) {
-      //      // we have operations to perform
-      //      // self ! currentView.state.last
-      //    }
-      //  }
-      //}
       //case JoinView(keyHash, serverId, who) => {
       //  // possible cases
       //  if (this.serverId < serverId) {
@@ -139,69 +120,49 @@ object Server {
       //  }
       //  currentView(keyHash).participants.foreach(_ ! UpdateView(keyHash, currentView(keyHash))) // update view of all participants
       //}
-      //case ServerDetails(keyHash, serverId, view) => {
-      //  if (isLeader(keyHash)) {
-      //    // quorum has already been formed by self, send details to sender
-      //    sender ! ServerDetails(keyHash, this.serverId, currentView(keyHash))
-      //  } else if (!isLeader(keyHash) && currentView(keyHash).participants.size >= quorumSize) {
-      //    // self is already in a quorum, reply with the current view
-      //    sender ! ServerDetails(keyHash, this.serverId, currentView(keyHash))
-      //    println(s"${self.path.name} refused to join another view because it already is in a quorum.")
-      //  } else if (!isLeader(keyHash) && currentView(keyHash).participants.size < quorumSize && view.participants.size < quorumSize) {
-      //    // no quorum is known yet, decide using the process ID
-      //    if (this.serverId > serverId) {
-      //      sender ! ServerDetails(keyHash, this.serverId, currentView(keyHash))
-      //    } else {
-      //      view.leader ! JoinView(keyHash, this.serverId, self)
-      //    }
-      //  } else if (view.participants.size >= quorumSize) {
-      //    // someone else already got a quorum, I'm going to join them
-      //    view.leader ! JoinView(keyHash, this.serverId, self)
-      //  } else {
-      //    println("shit.")
-      //  }
-      //}
       case _ => debugLog("[Stage: Waiting for servers' address] Received unknown message.")
     }
 
     def isLeader(keyHash: Int): Boolean = {
-      var res = ((viewsmap.get(keyHash).map(_.leader == self).get)
-        && ((viewsmap.getOrElse(keyHash, View(this.id, self, List(), List())).participants.size) >= quorumSize))
-      debugLog("H: " + keyHash + " isLeader: " + res + " Q: " + quorumSize + " ALL: " + (viewsmap.getOrElse(keyHash, View(this.id, self, List(), List())).participants.size))
-      res
+      viewsmap.get(keyHash) match {
+        case Some(v) =>
+          debugLog("H: " + keyHash + " isLeader: " + (v.leader == self))
+          v.leader == self
+        case None => false
+      }
     }
 
-    def currentView(keyHash: Int): View = {
-      viewsmap.getOrElse(keyHash, View(this.id, self, List(), List()))
+    def consultView(keyHash: Int): View = {
+      viewsmap.getOrElse(keyHash, View(-1, self, List(), List()))
     }
 
     def viewSetup() = {
       var tmplist = 0 to (serversAddresses.size - 1)
       for (p <- 0 to (replicationDegree - 1)) {
         var key = if (id - p >= 0) tmplist(id - p) else tmplist(tmplist.size + (id - p))
-        var l = (key to (key + replicationDegree-1)).map(e => e % tmplist.size).filter(e => e != id).map(e => serversAddresses.get("Server" + e)).flatMap(e => e).toList
-        // log(printlist(key + "->", l))
+        var l = (key to (key + replicationDegree - 1)).map(e => e % tmplist.size).filter(e => e != id).map(e => serversAddresses.get("Server" + e)).flatMap(e => e).toList
         viewsmap += (key -> new View(1, self, l, List()))
       }
-      log(viewsmap.foldLeft("") { (acc, n) =>
-        acc + "\n" + "L: " + n._2.leader.path.name + " K: " + printlist(n._1 + "->", n._2.participants)
-      })
+      debugLog(viewMapToString())
       context.become(learn(), discardOld = true)
       viewsmap.foreach(t => {
-        log(paxoslist(t._1).path.name)
         paxoslist(t._1) ! Start(t._2)
       })
     }
 
+    def viewMapToString(): String = {
+      viewsmap.foldLeft("") { (acc, n) =>
+        acc + "\n" + "L: " + n._2.leader.path.name + " K: " + printlist(n._1 + "->", n._2.participants) + (n._2.state.foldLeft(" Ops:") { (acc2, n2) => acc2 + ", " + n2 })
+      }
+    }
     var nlearns = 0
     def learn(): Receive = {
       case (k: Int, v: View) =>
         nlearns += 1
         viewsmap += (k -> v)
         if (nlearns == replicationDegree) {
-          log(viewsmap.foldLeft("") { (acc, n) =>
-            acc + "\n" + "L: " + n._2.leader.path.name + " K: " + printlist(n._1 + "->", n._2.participants)
-          })
+          log(viewMapToString())
+          context.unbecome()
         }
       case a: Any =>
         log(a)
@@ -221,79 +182,52 @@ object Server {
       //   heartbeatThenAnswer(sender)
 
       case UpdateView(keyHash, view) => {
-        if (isLeader(keyHash)) {
-          // println("someone just told a leader to update their view.")
-        } else {
-          //just update the view man
-          viewsmap += (keyHash -> view)
-          // println(s"$self updated its view.")
-          if (currentView(keyHash).state.size > 0 && lastOperationId < currentView(keyHash).state.last.id) {
-            // we have operations to perform
-            // self ! currentView.state.last
-            val tmpList = (lastOperationId to currentView(keyHash).state.last.id - 1).map(e => currentView(keyHash).state(e)).toList
+        if (!isLeader(keyHash) && consultView(keyHash).id != -1) {
+          if (view.state.size > 0 && consultView(keyHash).state.size < view.state.size) {
+            val tmpList = (consultView(keyHash).state.size to view.state.size - 1).map(e => view.state(e)).toList
             for (op <- tmpList)
               op match {
-                case Read(_, key) =>
+                case Read(_, hash, key) =>
                   kvStore.get(key)
-                case Write(_, key, value) =>
+                case Write(_, hash, key, value) =>
                   kvStore += (key -> value)
               }
-            lastOperationId = currentView.state.last.id
-
+            viewsmap += (keyHash -> view)
+            log((tmpList.foldLeft("Executed Ops: ") { (acc, n) => acc + ", " + n })+"\nUpdated to:" + viewMapToString())
           }
         }
       }
 
-      //case JoinView(serverId, who) => {
-      //  // possible cases
-      //  if (this.serverId < serverId) {
-      //    // only possible if I already own a quorum
-      //    if (isLeader) {
-      //      println(s"Received request to join the quorum.")
-      //    } else {
-      //      println("impossible!")
-      //    }
-      //  } else {
-      //    numSlaves += 1
-      //    if (!isLeader && numSlaves >= quorumSize) {
-      //      isLeader = true
-      //      coordinator ! LeaderElected(self)
-      //    }
-      //  }
-      //  // we always update the view
-      //  myCurrentViewId = 1 //TODO
-      //  currentView = View(myCurrentViewId, self, currentView.participants ::: List(who), currentView.state)
-      //  currentView.participants.foreach(_ ! UpdateView(currentView)) // send to all participants
-      //  println(s"View increased size by 1. Current leader is ${currentView.leader.path.name}")
-      //}
-      ////
-      //// client ops
-      //case op: Action => {
-      //  if (isLeader) {
-      //    myCurrentViewId = 1 //TODO
-      //    var newOp = op match {
-      //      case Get(key) => { Read(getOperationId(), key) }
-      //      case Put(key, value) => { Write(getOperationId(), key, value) }
-      //    }
-      //    currentView = View(myCurrentViewId, currentView.leader, currentView.participants, currentView.state ::: List(newOp))
-      //    implicit val timeout = Timeout(MAX_EXEC_TIME)
-      //    var clt = sender
-      //    paxosViews ? Start(UpdateView(currentView)) onComplete {
-      //      case Success(UpdateView(result)) =>
-      //        debugLog("UpdateView by paxosViews: " + result)
-      //        result.state.last match {
-      //          case Read(_, key) => clt ! OperationSuccessful(s"Read($key)=${kvStore.get(key)}")
-      //          case Write(_, key, value) =>
-      //            kvStore += (key -> value)
-      //            clt ! OperationSuccessful(s"Write($key,$value)")
-      //        }
-      //      case Success(result) => log("### Something went wrong ###ACTION: " + result)
-      //      case Failure(failure) =>
-      //        debugLog("UpdateView error by paxosViews: " + failure)
-      //        clt ! OperationError(s"Op failed ")
-      //    }
-      //  }
-      //}
+      case op: Action => {
+        if (isLeader(op.hash)) {
+          var newOp = op match {
+            case Get(hash, key) => { Read(getOperationId(), hash, key) }
+            case Put(hash, key, value) => { Write(getOperationId(), hash, key, value) }
+          }
+
+          var currentView: View = consultView(newOp.hash)
+          var newView = View(currentView.id, currentView.leader, currentView.participants, currentView.state ::: List(newOp))
+          viewsmap += (newOp.hash -> newView)
+
+          implicit val timeout = Timeout(MAX_EXEC_TIME)
+          var clt = sender
+          paxosVList(op.hash) ? Start(UpdateView(newOp.hash, newView)) onComplete {
+            case Success(UpdateView(key, result)) =>
+              debugLog("UpdateView by paxosViews: " + result)
+              log("Received: " + op + "\n" + "Updated View State: " + viewMapToString())
+              result.state.last match {
+                case Read(_, hash, key) => clt ! OperationSuccessful(s"Read($key)=${kvStore.get(key)}")
+                case Write(_, hash, key, value) =>
+                  kvStore += (key -> value)
+                  clt ! OperationSuccessful(s"Write($key,$value)")
+              }
+            case Success(result) => log("### Something went wrong ###ACTION: " + result)
+            case Failure(failure) =>
+              debugLog("UpdateView error by paxosViews: " + failure)
+              clt ! OperationError(s"Op failed ")
+          }
+        }
+      }
       case _ => debugLog("[Stage: Responding to Get/Put] Received unknown message.")
     }
 

@@ -17,7 +17,7 @@ import deploy.Server.{ Get, Put, Action, WhoIsLeader, TheLeaderIs, Alive }
 import stats.Messages.{ ClientStart, ClientEnd, StatOp }
 
 object Client {
-  val DO_OP_TIME = 0.seconds
+  val DO_OP_TIME = 2.seconds
   val ANSWER_TIME = 2.seconds
   val LEADER_ANSWER_TIME = 2.seconds
   case class ClientConf(readsRate: Int, maxOpsNumber: Int, zipfNumber: Int)
@@ -65,11 +65,13 @@ object Client {
     def receive = {
       case DoRequest =>
         var op = createOperation()
-        op match {
-          case Get(_) => stat ! StatOp(self.path, "get")
-          case Put(_, _) => stat ! StatOp(self.path, "put")
-        }
-        sendToLeader(op, false)
+        op = Get(0,"ola")
+        serversURI.values.foreach(e=> e ! op)
+        // op match {
+        //   case Get(_,_) => stat ! StatOp(self.path, "get")
+        //   case Put(_,_, _) => stat ! StatOp(self.path, "put")
+        // }
+        // sendToLeader(op, false)
       case a: Any => debugLog("[Stage:Getting Leader Address] Received unknown message. " + a)
     }
 
@@ -103,8 +105,8 @@ object Client {
             case Success(result) =>
               log(result + " => OP:" + op + " on " + l.path.name)
               op match {
-                case Get(_) => stat ! StatOp(self.path, "getsuc")
-                case Put(_, _) => stat ! StatOp(self.path, "putsuc")
+                case Get(_,_) => stat ! StatOp(self.path, "getsuc")
+                case Put(_, _,_) => stat ! StatOp(self.path, "putsuc")
               }
               resetRole()
             case Failure(failure) =>
@@ -131,14 +133,22 @@ object Client {
     }
 
     def createOperation(): Action = {
-      var op = if (rnd.nextInt(0, 101) <= clientConf.readsRate)
-        Get(zipf.sample().toString)
-      else {
-        Put(zipf.sample().toString, zipf.sample().toString)
+      var op = if (rnd.nextInt(0, 101) <= clientConf.readsRate) {
+        var str = zipf.sample().toString
+        Get(calcHash(str), str)
+      } else {
+        var str = (zipf.sample().toString, zipf.sample().toString)
+        Put(calcHash(str._1), str._1, str._2)
       }
       opsCounter += 1
       debugLog("Nº:" + opsCounter + " OP: " + op)
       op
+    }
+
+    def calcHash(str: String) :Int = {
+        str.hashCode() % serversURI.size
+        serverLeader= serversURI.get("Server0")
+        0
     }
 
     def resetRole() = {

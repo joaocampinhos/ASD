@@ -13,7 +13,7 @@ import scala.concurrent.Await
 import akka.pattern.ask
 import util.Failure
 import util.Success
-import views.Views.{ OperationSuccessful, OperationError, Write, Read, UpdateView, View, JoinView, LeaderElected }
+import views.Views.{ View, UpdateView }
 
 class PaxosBase() extends Actor {
   import context.dispatcher
@@ -36,7 +36,7 @@ class PaxosBase() extends Actor {
   }
 }
 
-class ViewsPaxos(totalServers: Int) extends PaxosBase {
+class ViewsPaxos(id: Int, totalServers: Int) extends PaxosBase {
   import context.dispatcher
   setupRoles()
 
@@ -56,11 +56,11 @@ class ViewsPaxos(totalServers: Int) extends PaxosBase {
   }
 
   override def receive = {
-    case Start(UpdateView(v)) =>
+    case Start(UpdateView(k, v)) =>
       debugLog("Started paxos for a view")
       toRespond = new MutableList() ++ v.participants
       toRespond += sender
-      proposers(0) ! Operation(UpdateView(v))
+      proposers(0) ! Operation(UpdateView(k, v))
       proposers(0) ! Go
 
     case Learn(v) =>

@@ -22,8 +22,8 @@ import paxos._
 
 object Client {
   val DO_OP_TIME = 0.seconds
-  val ANSWER_TIME = 3.seconds
-  val LEADER_ANSWER_TIME = 3.seconds
+  val ANSWER_TIME = 1.seconds
+  val LEADER_ANSWER_TIME = 1.seconds
   case class ClientConf(readsRate: Int, maxOpsNumber: Int, zipfNumber: Int)
   case object DoRequest
   case object IsAlive

@@ -1,7 +1,6 @@
 package paxos
 
-import akka.actor.Actor
-import akka.actor.ActorRef
+import akka.actor.{ Actor, ActorRef }
 import akka.event.Logging
 import scala.util.Random
 

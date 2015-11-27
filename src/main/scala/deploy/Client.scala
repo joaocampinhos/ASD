@@ -158,6 +158,7 @@ object Client {
         case clientConf.maxOpsNumber =>
           stat ! Lat(self.path, sum.toInt)
           log("Executed all ops")
+          stat ! ClientEnd(self.path)
           cancelOpTimeout()
           //Tempo total
           context.stop(self) // Client has executed all operations

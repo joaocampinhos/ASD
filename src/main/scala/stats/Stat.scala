@@ -146,10 +146,16 @@ object Stat {
             throughput += (ops/(time.toFloat/1000)).toInt
             //latencia media de cada pedido (ms)
             latency += x._2.lattotal.toFloat/ops
+            println(x._1)
+            println("time: " + time)
+            println("ops: " + ops)
+            println("latencia: " + ops)
+            println("throughput: " + (ops/(time.toFloat/1000)).toInt)
+            println("----------------------------------")
           }
       }
       writer.write(f"Tempo medio  : ${time / totalClients}%d ms\n")
-      writer.write(f"Throughput   : ${throughput / totalClients}%d ops/min\n")
+      writer.write(f"Throughput   : ${throughput / totalClients}%d ops/s\n")
       writer.write(f"Latencia     : ${(latency / totalClients).toInt}%d ms\n")
       writer.close()
     }

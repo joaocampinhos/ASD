@@ -18,6 +18,7 @@ object Server {
   val MAX_HEARTBEAT_TIME = 500.milliseconds
   val MAX_ELECTION_TIME = 500.milliseconds
   val MAX_EXEC_TIME = 1.seconds
+  val VIEW_STATE_MAX_SIZE = 1000
 
   trait Action {
     def hash: Int
@@ -131,9 +132,10 @@ object Server {
       case op: Action => {
         if (isLeader(op.hash)) {
           var currentView: View = consultView(op.hash)
+          var currentState = if (currentView.state.size == VIEW_STATE_MAX_SIZE) currentView.state.tail else currentView.state
           var newView =
             View(currentView.id + 1, currentView.leader, currentView.participants,
-              currentView.state ::: List(op match {
+              currentState ::: List(op match {
                 case Get(hash, key) => { Read(currentView.state.size, hash, key) }
                 case Put(hash, key, value) => { Write(currentView.state.size, hash, key, value) }
               }))

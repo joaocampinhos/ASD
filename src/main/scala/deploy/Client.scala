@@ -49,7 +49,7 @@ object Client {
     var leaderQuorum = new MutableList[Option[ActorRef]]()
     var opsCounter = 0
     var alzheimer = false
-    var debug = false
+    var debug = true
     var timeoutScheduler: Option[Cancellable] = None
 
     var start: Long = 0

@@ -115,7 +115,7 @@ object Stat {
       case Messages.ServerEnd(path) =>
         stat(path).end = java.lang.System.currentTimeMillis()
       case Messages.StatOp(path, op) => 
-        log(path+","+op)
+        debugLog(path+","+op)
         stat(path).ops += 1
       case Messages.Lat(path, v) => stat(path).lattotal = v
       case a => log.info(a toString)

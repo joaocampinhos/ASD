@@ -105,9 +105,10 @@ object Stat {
         dump()
       case Messages.ClientStart(path) =>
         stat += (path -> new State(java.lang.System.currentTimeMillis(), false))
-        debugLog("Client start => " + path)
+        log("Client start => " + path)
       case Messages.ClientEnd(path) =>
         stat(path).end = java.lang.System.currentTimeMillis()
+        log("Client end => " + path)
       case Messages.ServerStart(path) =>
         stat += (path -> new State(java.lang.System.currentTimeMillis(), true))
         debugLog("Server start => " + path)
@@ -149,7 +150,7 @@ object Stat {
             println(x._1)
             println("time: " + time)
             println("ops: " + ops)
-            println("latencia: " + ops)
+            println("latencia: " + latency)
             println("throughput: " + (ops/(time.toFloat/1000)).toInt)
             println("----------------------------------")
           }

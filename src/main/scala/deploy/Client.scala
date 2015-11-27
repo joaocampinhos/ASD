@@ -54,9 +54,9 @@ object Client {
     var start:Long = 0
     var end:Long = 0
     var sum:Long = 0
+    var op1:Boolean = true
 
     log("I'm ready")
-    stat ! ClientStart(self.path)
 
     def log(text: Any) = {
       println(Console.MAGENTA + "[" + self.path.name + "] " + Console.YELLOW + text + Console.WHITE)
@@ -67,12 +67,16 @@ object Client {
     }
 
     override def postStop() {
-      stat ! ClientEnd(self.path)
+      //stat ! ClientEnd(self.path)
     }
 
     def receive = {
       case IsAlive => sender ! Alive 
       case DoRequest =>
+        if (op1) {
+          op1 = false
+          stat ! ClientStart(self.path)
+        }
         var op = createOperation()
         op match {
           case Get(_, _) => stat ! StatOp(self.path, "get")

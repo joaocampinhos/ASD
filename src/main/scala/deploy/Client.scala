@@ -13,8 +13,8 @@ import concurrent.duration._
 import concurrent.forkjoin.ThreadLocalRandom
 import concurrent.Await
 import util.{ Failure, Success }
-import deploy.Server.{ Get, Put, Action, WhoIsLeader, TheLeaderIs}
-import deploy.Deployer.{ IsReady,Ready}
+import deploy.Server.{ Get, Put, Action, WhoIsLeader, TheLeaderIs }
+import deploy.Deployer.{ IsReady, Ready }
 import stats.Stat.Messages.{ ClientStart, ClientEnd, StatOp, Lat }
 import akka.pattern.ask
 import akka.util.Timeout
@@ -57,8 +57,6 @@ object Client {
     var sum: Long = 0
     var op1: Boolean = true
 
-    log("I'm ready")
-
     def log(text: Any) = {
       println(Console.MAGENTA + "[" + self.path.name + "] " + Console.YELLOW + text + Console.WHITE)
     }
@@ -75,6 +73,7 @@ object Client {
       case IsReady => sender ! Ready
       case DoRequest =>
         if (op1) {
+          log("I'm ready")
           op1 = false
           stat ! ClientStart(self.path)
         }
@@ -117,12 +116,12 @@ object Client {
             case Success(result) =>
               end = java.lang.System.currentTimeMillis()
               sum += (end - start)
-              log(result + " => OP:" + op + " on " + actor.path.name)
+              debugLog(result + " => OP:" + op + " on " + actor.path.name)
               resetRole()
             case Failure(failure) =>
               end = java.lang.System.currentTimeMillis()
               sum += (end - start)
-              log("OP:" + op + " failed: " + failure + " on " + actor.path.name)
+              debugLog("OP:" + op + " failed: " + failure + " on " + actor.path.name)
               debugLog("Total servers " + serversURI.size)
               idxMap -= op.hash
               findLeader(op, consecutiveError)

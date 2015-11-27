@@ -28,13 +28,15 @@ object Server {
   case class WhoIsLeader(hash: Int)
   case object Alive
   case class TheLeaderIs(l: Option[ActorRef])
-  case class ServersConf(servers: collection.mutable.HashMap[String, ActorRef])
+  case class ServersConf(servers: collection.mutable.HashMap[String, ActorRef], paxoslist: List[ActorRef], paxosVList: List[ActorRef])
 
-  case class ServerActor(id: Int, stat: ActorRef, paxoslist: List[ActorRef], paxosVList: List[ActorRef], replicationDegree: Int) extends Actor {
+  case class ServerActor(id: Int, stat: ActorRef, replicationDegree: Int) extends Actor {
     import context.dispatcher
     val log = Logging(context.system, this)
     var debug = false
     var serversAddresses = HashMap[String, ActorRef]()
+    var paxoslist = List[ActorRef]()
+    var paxosVList = List[ActorRef]()
     var coordinator: ActorRef = null
     var kvStore = collection.mutable.Map[String, String]()
     var viewsmap = HashMap[Int, View]()
@@ -57,8 +59,10 @@ object Server {
     def waitForData(): Receive = {
       case Stop =>
         context.stop(self)
-      case ServersConf(map) =>
+      case ServersConf(map,electionPaxosList,viewsPaxosList) =>
         serversAddresses = map
+        paxoslist = electionPaxosList
+        paxosVList = viewsPaxosList
         coordinator = sender
         viewSetup()
       case _ => debugLog("[Stage: Waiting for servers' address] Received unknown message.")

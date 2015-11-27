@@ -39,7 +39,7 @@ class Paxos() extends Actor {
 class ViewPaxos(id: Int, totalServers: Int) extends Paxos {
   import context.dispatcher
   setupRoles()
-
+  debugLog("Ready")
   override def setupRoles() = {
     proposers += context.actorOf(Props(new Proposer), name = "proposer")
     for (s <- 1 to totalServers) {
@@ -103,6 +103,7 @@ class ViewPaxos(id: Int, totalServers: Int) extends Paxos {
 class ElectionPaxos(id: Int, totalServers: Int) extends Paxos {
   import context.dispatcher
   setupRoles()
+  debugLog("Ready")
   override def setupRoles() = {
     for (s <- 1 to totalServers) {
       acceptors += context.actorOf(Props(new Acceptor), name = "acceptor" + s)

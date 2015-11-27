@@ -119,7 +119,7 @@ object Client {
               sum += (end - start)
               log("OP:" + op + " failed: " + failure + " on " + actor.path.name)
               debugLog("Total servers " + serversURI.size)
-              serverLeader = None
+              idxMap -= op.hash
               findLeader(op, consecutiveError)
           }
         case None =>

@@ -24,15 +24,16 @@ import paxos._
 object Client {
   val DO_OP_TIME = 0.seconds
   val ANSWER_TIME = 1.seconds
-  val LEADER_ANSWER_TIME = 1.seconds
+  val LEADER_ANSWER_TIME = 2.seconds
   case class ClientConf(readsRate: Int, maxOpsNumber: Int, zipfNumber: Int)
   case object DoRequest
   case object IsAlive
 
   def parseClientConf(config: Config): ClientConf = {
+    println((config.getInt("maxOpsPerClient") / config.getInt("totalClients")))
     new ClientConf(
       config.getInt("ratioOfReads"),
-      config.getInt("maxOpsPerClient"),
+      (config.getInt("maxOpsPerClient") / config.getInt("totalClients")),
       config.getInt("numberOfZipfKeys")
     )
   }
@@ -49,7 +50,7 @@ object Client {
     var leaderQuorum = new MutableList[Option[ActorRef]]()
     var opsCounter = 0
     var alzheimer = false
-    var debug = true
+    var debug = false
     var timeoutScheduler: Option[Cancellable] = None
 
     var start: Long = 0

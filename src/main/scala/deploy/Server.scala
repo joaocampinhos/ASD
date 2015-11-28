@@ -17,7 +17,7 @@ import deploy.Deployer.Ready
 object Server {
   val MAX_HEARTBEAT_TIME = 500.milliseconds
   val MAX_ELECTION_TIME = 500.milliseconds
-  val MAX_EXEC_TIME = 1.seconds
+  val MAX_EXEC_TIME = 2.seconds
   val VIEW_STATE_MAX_SIZE = 1000
 
   trait Action {

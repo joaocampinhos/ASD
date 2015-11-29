@@ -22,3 +22,10 @@ Run:
  sbt "run-main deploy.Control status"
 ```
 
+# Kill a Server
+
+Run:
+```bash
+ sbt "run-main deploy.Control kill $serverId"
+```
+
